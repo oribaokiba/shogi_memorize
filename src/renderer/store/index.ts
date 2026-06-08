@@ -1750,7 +1750,8 @@ class Store {
       } catch (e) {
         // ignore
       }
-      this.recordManager.resetByCurrentPosition();
+      // 不正解時は盤面はそのまま（appendMoveしていないので駒位置は変わらない）
+      // recordManager.resetByCurrentPosition() は呼ばない（棋譜が消えてしまうため）
     }
   }
 

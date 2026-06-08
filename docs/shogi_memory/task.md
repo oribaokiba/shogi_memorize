@@ -1,12 +1,12 @@
-- [ ] ドラッグ＆ドロップ動作の改善
-  - [ ] `App.vue` の `drop` ハンドラにネイティブ環境判定（`isNative()`）によるガードを追加する
-- [ ] ストア（`store/index.ts`）の機能拡張
-  - [ ] `_memorizePlayerColor` と `_isMemorizeProcessing` 状態を追加する
-  - [ ] `startMemorizeProblem` を拡張し、手番（先手/後手）の切り替えをサポートする
-  - [ ] `doMemorizeMove` と `giveUpMemorize` に `_isMemorizeProcessing` による操作ロックとガードを導入する
-- [ ] UI（`MemorizePanel.vue`）の拡張
-  - [ ] 手番（先手/後手/初期手番）を切り替えるUI（トグルスイッチ等）を実装する
-  - [ ] 操作ロック中はボタンを `disabled` にする
+- [x] ドラッグ＆ドロップ動作の改善
+  - [x] `App.vue` の `drop` ハンドラにネイティブ環境判定（`isNative()`）によるガードを追加する
+- [x] ストア（`store/index.ts`）の機能拡張
+  - [x] `_memorizePlayerColor` と `_isMemorizeProcessing` 状態を追加する
+  - [x] `startMemorizeProblem` を拡張し、手番（先手/後手）の切り替えをサポートする
+  - [x] `doMemorizeMove` と `giveUpMemorize` に `_isMemorizeProcessing` による操作ロックとガードを導入する
+- [x] UI（`MemorizePanel.vue`）の拡張
+  - [x] 手番（先手/後手/初期手番）を切り替えるUI（トグルスイッチ等）を実装する
+  - [x] 操作ロック中はボタンを `disabled` にする
 - [ ] 動作確認
   - [ ] ドラッグ＆ドロップでエラーが出ないことの確認
   - [ ] 手番変更によって暗記が切り替わることの確認

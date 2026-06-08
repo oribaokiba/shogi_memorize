@@ -1,108 +1,109 @@
 <template>
   <div class="memorize-panel full column">
     <!-- ファイルインポートエリア -->
-    <div class="import-area card row shrink" @dragover.prevent.stop @drop.prevent.stop="onFileDrop">
-      <span class="label">定跡KIFインポート:</span>
-      <input type="file" accept=".kif" @change="onFileChange" class="file-input" />
-      <span class="help-text">（KIFファイルをドラッグ＆ドロップまたは選択）</span>
+    <div class="import-area card shrink">
+      <div class="import-row row align-center">
+        <span class="label">定跡KIFインポート:</span>
+        <input type="file" accept=".kif,.kifu" @change="onFileChange" class="file-input" />
+      </div>
     </div>
 
     <!-- 問題が読み込まれている場合 -->
-    <div v-if="store.memorizeProblems.length > 0" class="content-area row grow">
-      <!-- 問題選択リスト（左側） -->
-      <div class="problem-list card column shrink">
-        <h3>問題リスト</h3>
-        <div class="list-container scrollable">
+    <div v-if="store.memorizeProblems.length > 0" class="problem-section card shrink">
+      <!-- 問題選択（セレクトボックス） -->
+      <div class="row align-center problem-select-row">
+        <span class="setting-label">問題:</span>
+        <select
+          class="problem-select"
+          :value="store.currentProblemIndex"
+          @change="onSelectProblem"
+        >
+          <option v-for="(problem, idx) in store.memorizeProblems" :key="idx" :value="idx">
+            {{ idx + 1 }}. {{ problem.name }} ({{ problem.moves.length }}手)
+          </option>
+        </select>
+      </div>
+
+      <!-- 手番設定 -->
+      <div class="row align-center setting-row">
+        <span class="setting-label">自分の手番:</span>
+        <div class="toggle-group">
           <button
-            v-for="(problem, idx) in store.memorizeProblems"
-            :key="idx"
-            class="problem-btn"
-            :class="{ active: store.currentProblemIndex === idx }"
-            @click="store.startMemorizeProblem(idx, store.memorizePlayerColor)"
+            class="toggle-btn"
+            :class="{ active: selectedColor === undefined }"
+            :disabled="store.isMemorizeProcessing"
+            @click="changePlayerColor(undefined)"
           >
-            {{ problem.name }} ({{ problem.moves.length }}手)
+            デフォルト
+          </button>
+          <button
+            class="toggle-btn"
+            :class="{ active: selectedColor === Color.BLACK }"
+            :disabled="store.isMemorizeProcessing"
+            @click="changePlayerColor(Color.BLACK)"
+          >
+            先手 (▲)
+          </button>
+          <button
+            class="toggle-btn"
+            :class="{ active: selectedColor === Color.WHITE }"
+            :disabled="store.isMemorizeProcessing"
+            @click="changePlayerColor(Color.WHITE)"
+          >
+            後手 (△)
           </button>
         </div>
       </div>
+    </div>
 
-      <!-- 暗記コントロール（右側） -->
-      <div v-if="store.currentProblem" class="controls-area card column grow">
-        <h2 class="problem-title">{{ store.currentProblem.name }}</h2>
-        
-        <!-- 手番設定（先手/後手切り替え） -->
-        <div class="setting-box row shrink align-center">
-          <span class="setting-label">自分の手番:</span>
-          <div class="toggle-group">
-            <button 
-              class="toggle-btn" 
-              :class="{ active: selectedColor === undefined }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(undefined)"
-            >
-              デフォルト
-            </button>
-            <button 
-              class="toggle-btn" 
-              :class="{ active: selectedColor === Color.BLACK }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(Color.BLACK)"
-            >
-              先手 (▲)
-            </button>
-            <button 
-              class="toggle-btn" 
-              :class="{ active: selectedColor === Color.WHITE }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(Color.WHITE)"
-            >
-              後手 (△)
-            </button>
-          </div>
-        </div>
+    <!-- 暗記コントロール -->
+    <div v-if="store.currentProblem" class="controls-card card shrink">
+      <!-- 手番 & 進捗 -->
+      <div class="status-row row align-center">
+        <span class="status-item">
+          <span class="status-label">手番:</span>
+          <span class="status-value" :class="playerColorClass">
+            {{ actualPlayerColor === Color.BLACK ? '先手 (▲)' : '後手 (△)' }}
+          </span>
+        </span>
+        <span class="status-item">
+          <span class="status-label">進捗:</span>
+          <span class="status-value">
+            {{ store.memorizeStep }} / {{ store.currentProblem.moves.length }}手
+          </span>
+        </span>
+      </div>
 
-        <div class="status-box">
-          <div class="status-item">
-            <span class="status-label">手番:</span>
-            <span class="status-value" :class="playerColorClass">
-              {{ actualPlayerColor === Color.BLACK ? '先手 (▲)' : '後手 (△)' }}
-            </span>
-          </div>
-          <div class="status-item">
-            <span class="status-label">進捗:</span>
-            <span class="status-value">
-              {{ store.memorizeStep }} / {{ store.currentProblem.moves.length }}手
-            </span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" :style="{ width: progressPercent + '%' }"></div>
-          </div>
-        </div>
+      <!-- プログレスバー -->
+      <div class="progress-bar-container">
+        <div class="progress-bar" :style="{ width: progressPercent + '%' }"></div>
+      </div>
 
-        <div class="action-buttons row shrink">
-          <button 
-            class="btn btn-primary" 
-            :disabled="store.isMemorizeProcessing"
-            @click="restart"
-          >
-            最初からやり直す
-          </button>
-          <button 
-            class="btn btn-secondary" 
-            :disabled="isCleared || store.isMemorizeProcessing"
-            @click="store.giveUpMemorize()"
-          >
-            ギブアップ (1手進める)
-          </button>
-        </div>
+      <!-- アクションボタン -->
+      <div class="action-buttons row">
+        <button
+          class="btn btn-primary"
+          :disabled="store.isMemorizeProcessing"
+          @click="restart"
+        >
+          最初からやり直す
+        </button>
+        <button
+          class="btn btn-secondary"
+          :disabled="isCleared || store.isMemorizeProcessing"
+          @click="store.giveUpMemorize()"
+        >
+          ギブアップ (1手進める)
+        </button>
+      </div>
 
-        <div v-if="isCleared" class="clear-message">
-          🎉 クリアしました！
-        </div>
+      <div v-if="isCleared" class="clear-message">
+        🎉 クリアしました！
       </div>
     </div>
 
     <!-- 問題がまだ読み込まれていない場合 -->
-    <div v-else class="empty-area column grow center">
+    <div v-if="store.memorizeProblems.length === 0" class="empty-area column grow">
       <div class="empty-message">
         練習したい定跡のKIFファイルをインポートしてください。
       </div>
@@ -140,7 +141,6 @@ const loadKIFFile = (file: File) => {
     if (text) {
       const err = store.importKIFForMemorize(text);
       if (err) {
-        // Shift-JIS で失敗した場合 UTF-8 でリトライ
         const reader2 = new FileReader();
         reader2.onload = (e2) => {
           const text2 = e2.target?.result as string;
@@ -158,11 +158,18 @@ const loadKIFFile = (file: File) => {
   reader.readAsText(file, "shift-jis");
 };
 
+const onSelectProblem = (event: Event) => {
+  const idx = parseInt((event.target as HTMLSelectElement).value, 10);
+  store.startMemorizeProblem(idx, store.memorizePlayerColor);
+};
+
 const selectedColor = computed(() => store.memorizePlayerColor);
 
 const actualPlayerColor = computed(() => {
   if (!store.currentProblem) return Color.BLACK;
-  return store.memorizePlayerColor !== undefined ? store.memorizePlayerColor : store.currentProblem.playerColor;
+  return store.memorizePlayerColor !== undefined
+    ? store.memorizePlayerColor
+    : store.currentProblem.playerColor;
 });
 
 const progressPercent = computed(() => {
@@ -190,81 +197,66 @@ const restart = () => {
     store.startMemorizeProblem(store.currentProblemIndex, store.memorizePlayerColor);
   }
 };
+
+// onFileDrop は import-area が消えたので残しておくが実際には使われない（念のため保持）
+void onFileDrop;
 </script>
 
 <style scoped>
 .memorize-panel {
-  padding: 10px;
+  padding: 8px;
   background-color: var(--main-bg-color);
   color: var(--main-color);
-  overflow: hidden;
+  overflow: auto;
+  gap: 6px;
 }
 .card {
   background-color: var(--panel-bg-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 10px;
-  margin-bottom: 10px;
+  padding: 8px 12px;
 }
 .import-area {
-  align-items: center;
+  padding: 6px 12px;
+}
+.import-row {
   gap: 10px;
+  align-items: center;
+}
+.label {
+  white-space: nowrap;
+  font-size: 0.9rem;
 }
 .file-input {
   color: var(--main-color);
+  font-size: 0.85rem;
+  flex: 1;
 }
-.help-text {
-  font-size: 0.8rem;
-  color: var(--text-color-muted);
-}
-.content-area {
-  gap: 10px;
-  overflow: hidden;
-}
-.problem-list {
-  width: 250px;
-  overflow: hidden;
-}
-.list-container {
+.problem-section {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 10px;
+  gap: 6px;
 }
-.problem-btn {
-  text-align: left;
-  padding: 8px 12px;
+.problem-select-row {
+  gap: 8px;
+}
+.problem-select {
+  flex: 1;
+  padding: 4px 8px;
   background: var(--button-bg-color);
   border: 1px solid var(--border-color);
   color: var(--main-color);
   border-radius: 4px;
+  font-size: 0.9rem;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.problem-btn:hover {
-  background: var(--button-hover-bg-color);
-}
-.problem-btn.active {
-  background: var(--button-active-bg-color);
-  font-weight: bold;
-}
-.controls-area {
-  padding: 15px;
-  overflow: auto;
-}
-.problem-title {
-  font-size: 1.2rem;
-  margin-bottom: 15px;
-}
-.setting-box {
-  margin-bottom: 15px;
-  gap: 10px;
-  align-items: center;
+.setting-row {
+  gap: 8px;
 }
 .setting-label {
   font-weight: bold;
+  white-space: nowrap;
+  font-size: 0.85rem;
 }
 .toggle-group {
   display: flex;
@@ -273,13 +265,13 @@ const restart = () => {
   overflow: hidden;
 }
 .toggle-btn {
-  padding: 6px 12px;
+  padding: 4px 10px;
   background: var(--button-bg-color);
   border: none;
   border-right: 1px solid var(--border-color);
   color: var(--main-color);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 .toggle-btn:last-child {
   border-right: none;
@@ -295,34 +287,38 @@ const restart = () => {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.status-box {
-  background: var(--bg-color-2);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 15px;
-  margin-bottom: 20px;
+.controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.status-row {
+  gap: 20px;
+  flex-wrap: wrap;
 }
 .status-item {
   display: flex;
-  margin-bottom: 10px;
-  font-size: 1.1rem;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
 }
 .status-label {
-  width: 80px;
   font-weight: bold;
+  color: var(--text-color-muted);
 }
 .status-value.sente {
   color: #ff4500;
+  font-weight: bold;
 }
 .status-value.gote {
   color: #1e90ff;
+  font-weight: bold;
 }
 .progress-bar-container {
   background: var(--border-color);
-  height: 10px;
-  border-radius: 5px;
+  height: 8px;
+  border-radius: 4px;
   overflow: hidden;
-  margin-top: 15px;
 }
 .progress-bar {
   background: var(--accent-color, #4caf50);
@@ -330,13 +326,12 @@ const restart = () => {
   transition: width 0.3s ease;
 }
 .action-buttons {
-  gap: 15px;
-  margin-bottom: 20px;
+  gap: 10px;
 }
 .btn {
-  padding: 10px 20px;
+  padding: 6px 14px;
   border-radius: 4px;
-  font-size: 1rem;
+  font-size: 0.88rem;
   cursor: pointer;
   border: none;
 }
@@ -365,24 +360,39 @@ const restart = () => {
   background: #757575;
 }
 .clear-message {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: bold;
   color: #4caf50;
   text-align: center;
-  margin-top: 20px;
 }
 .empty-area {
   justify-content: center;
   align-items: center;
   border: 2px dashed var(--border-color);
   border-radius: 4px;
+  min-height: 60px;
 }
 .empty-message {
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: var(--text-color-muted);
+  text-align: center;
+  padding: 12px;
 }
-.scrollable {
-  overflow-y: auto;
-  max-height: 100%;
+.row {
+  display: flex;
+  flex-direction: row;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+}
+.align-center {
+  align-items: center;
+}
+.shrink {
+  flex-shrink: 0;
+}
+.grow {
+  flex: 1;
 }
 </style>
