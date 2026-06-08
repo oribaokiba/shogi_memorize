@@ -18,7 +18,7 @@
             :key="idx"
             class="problem-btn"
             :class="{ active: store.currentProblemIndex === idx }"
-            @click="store.startMemorizeProblem(idx)"
+            @click="store.startMemorizeProblem(idx, store.memorizePlayerColor)"
           >
             {{ problem.name }} ({{ problem.moves.length }}手)
           </button>
@@ -29,11 +29,42 @@
       <div v-if="store.currentProblem" class="controls-area card column grow">
         <h2 class="problem-title">{{ store.currentProblem.name }}</h2>
         
+        <!-- 手番設定（先手/後手切り替え） -->
+        <div class="setting-box row shrink align-center">
+          <span class="setting-label">自分の手番:</span>
+          <div class="toggle-group">
+            <button 
+              class="toggle-btn" 
+              :class="{ active: selectedColor === undefined }"
+              :disabled="store.isMemorizeProcessing"
+              @click="changePlayerColor(undefined)"
+            >
+              デフォルト
+            </button>
+            <button 
+              class="toggle-btn" 
+              :class="{ active: selectedColor === Color.BLACK }"
+              :disabled="store.isMemorizeProcessing"
+              @click="changePlayerColor(Color.BLACK)"
+            >
+              先手 (▲)
+            </button>
+            <button 
+              class="toggle-btn" 
+              :class="{ active: selectedColor === Color.WHITE }"
+              :disabled="store.isMemorizeProcessing"
+              @click="changePlayerColor(Color.WHITE)"
+            >
+              後手 (△)
+            </button>
+          </div>
+        </div>
+
         <div class="status-box">
           <div class="status-item">
             <span class="status-label">手番:</span>
             <span class="status-value" :class="playerColorClass">
-              {{ store.currentProblem.playerColor === Color.BLACK ? '先手 (▲)' : '後手 (△)' }}
+              {{ actualPlayerColor === Color.BLACK ? '先手 (▲)' : '後手 (△)' }}
             </span>
           </div>
           <div class="status-item">
@@ -48,12 +79,16 @@
         </div>
 
         <div class="action-buttons row shrink">
-          <button class="btn btn-primary" @click="restart">
+          <button 
+            class="btn btn-primary" 
+            :disabled="store.isMemorizeProcessing"
+            @click="restart"
+          >
             最初からやり直す
           </button>
           <button 
             class="btn btn-secondary" 
-            :disabled="isCleared"
+            :disabled="isCleared || store.isMemorizeProcessing"
             @click="store.giveUpMemorize()"
           >
             ギブアップ (1手進める)
@@ -123,6 +158,13 @@ const loadKIFFile = (file: File) => {
   reader.readAsText(file, "shift-jis");
 };
 
+const selectedColor = computed(() => store.memorizePlayerColor);
+
+const actualPlayerColor = computed(() => {
+  if (!store.currentProblem) return Color.BLACK;
+  return store.memorizePlayerColor !== undefined ? store.memorizePlayerColor : store.currentProblem.playerColor;
+});
+
 const progressPercent = computed(() => {
   if (!store.currentProblem) return 0;
   return (store.memorizeStep / store.currentProblem.moves.length) * 100;
@@ -134,13 +176,18 @@ const isCleared = computed(() => {
 });
 
 const playerColorClass = computed(() => {
-  if (!store.currentProblem) return "";
-  return store.currentProblem.playerColor === Color.BLACK ? "sente" : "gote";
+  return actualPlayerColor.value === Color.BLACK ? "sente" : "gote";
 });
+
+const changePlayerColor = (color: Color | undefined) => {
+  if (store.currentProblemIndex !== -1) {
+    store.startMemorizeProblem(store.currentProblemIndex, color);
+  }
+};
 
 const restart = () => {
   if (store.currentProblemIndex !== -1) {
-    store.startMemorizeProblem(store.currentProblemIndex);
+    store.startMemorizeProblem(store.currentProblemIndex, store.memorizePlayerColor);
   }
 };
 </script>
@@ -211,6 +258,43 @@ const restart = () => {
   font-size: 1.2rem;
   margin-bottom: 15px;
 }
+.setting-box {
+  margin-bottom: 15px;
+  gap: 10px;
+  align-items: center;
+}
+.setting-label {
+  font-weight: bold;
+}
+.toggle-group {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.toggle-btn {
+  padding: 6px 12px;
+  background: var(--button-bg-color);
+  border: none;
+  border-right: 1px solid var(--border-color);
+  color: var(--main-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.toggle-btn:last-child {
+  border-right: none;
+}
+.toggle-btn:hover:not(:disabled) {
+  background: var(--button-hover-bg-color);
+}
+.toggle-btn.active {
+  background: var(--button-active-bg-color);
+  font-weight: bold;
+}
+.toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .status-box {
   background: var(--bg-color-2);
   border: 1px solid var(--border-color);
@@ -260,8 +344,13 @@ const restart = () => {
   background: #2196f3;
   color: white;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #1e88e5;
+}
+.btn-primary:disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
+  cursor: not-allowed;
 }
 .btn-secondary {
   background: #9e9e9e;

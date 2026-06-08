@@ -1,63 +1,57 @@
-# 将棋定跡暗記アプリの実装計画 (Shogi Memory Customization)
+# 将棋定跡暗記アプリの実装計画 (追加修正・機能拡張)
 
-ShogiHomeをベースに、要件定義書に沿って不要機能を非表示にし、定跡暗記クイズ機能を追加します。
+定跡暗記機能の動作改善と、ユーザー指摘に基づく課題の解決を行います。
 
 ## ユーザーレビューが必要な事項
-- ロールバック（指し間違い時の駒の自動戻し）は、検証が不一致だった場合にストアの指し手履歴更新（`appendMove`）を行わないだけで実現できる予定です。
-- 不要な機能の削除は、今回はソースコードの大規模な物理削除を避け、メニューUIや設定項目、タブなどから不要なエントリーをコメントアウトまたは非表示にするアプローチで進めます（これにより、ベースコードの安定性を維持します）。
+
+> [!NOTE]
+> - ドラッグ＆ドロップエラーの修正にあたり、Webアプリ環境でのグローバルなファイル読み込み処理を無効化し、暗記パネル内でのドロップのみに限定します。
+> - 手番（先手・後手）の切り替えUIを暗記パネルに追加します。プレイヤーが切り替えた際、その手番を基準として問題が最初から再構成・開始されます。
+> - ギブアップ時の連打防止のため、CPU自動実行の遅延処理（500ms）中は操作ロックフラグを立てて、ボタンの無効化と指し手の無視を行います。
 
 ## 提案される変更
 
-### 1. 定数・設定の拡張
+---
 
-#### [MODIFY] [state.ts](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/common/control/state.ts)
-- `AppState` 列挙型に `MEMORIZE = "memorize"` を追加します。
+### 1. グローバルドロップイベントの制御
 
-#### [MODIFY] [app.ts](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/common/settings/app.ts)
-- `Tab` 列挙型に `MEMORIZE = "memorize"` を追加します。
+#### [MODIFY] [App.vue](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/renderer/view/App.vue)
+- グローバルな `body` に対する `drop` イベントハンドラにおいて、ネイティブ環境（`isNative()`）の場合のみ `store.openRecord(path)` を呼び出すようガードを追加します。
+- これにより、Webブラウザ環境でどこにファイルをドロップしても誤って `openRecord`（`invalid URI` 例外）が走る現象を防ぎます。
 
 ---
 
-### 2. 暗記モードの状態・ロジック追加
+### 2. 手番選択（先手・後手）と連打防止ロジックの追加
 
 #### [MODIFY] [store/index.ts](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/renderer/store/index.ts)
-- 暗記モード用の状態を追加します。
-  - `memorizeProblems`: 現在読み込んでいる問題（ルートから末尾までの指し手シーケンス）の配列
-  - `currentProblemIndex`: 選択中の問題のインデックス
-  - `memorizeStep`: 現在何手目まで正解したか
-  - `memorizePlayerColor`: プレイヤーの手番（先手または後手）
-- 指し手イベントのインターセプト:
-  - `doMove(move)` 内で `AppState.MEMORIZE` の場合、指された手が正しい指し手（`currentProblem.moves[memorizeStep]`）と一致するか検証します。
-  - 正解なら盤面に反映して手数を進め、次にCPU手番があれば `setTimeout`（500ms）経由でCPUの指し手を自動反映します。
-  - 不正解なら効果音等を鳴らし、盤面状態は更新しません（これにより駒は元の位置に戻ります）。
-- KIFパース処理（変化手順の抽出）:
-  - KIFインポート時、棋譜ツリーの全探索（DFS等）を行い、ルート局面から各終了局面までのパスをリスト化して `memorizeProblems` を構築します。
+- ストアの状態に以下の変数を追加します：
+  - `_memorizePlayerColor`: プレイヤーが選択した手番（`Color` または `undefined`。`undefined` の場合は問題本来の最初の手番）。
+  - `_isMemorizeProcessing`: CPUの指し手自動反映待ちタイマー（500ms）が動作しているかどうかを示す操作ロックフラグ。
+- `startMemorizeProblem(index: number, playerColor?: Color)` を拡張：
+  - 引数 `playerColor` が指定された場合、それを `problem.playerColor` の代わりにプレイヤーの手番として使用します。
+  - 手番の選択状態に応じて、初期局面でのCPUの自動指し手（問題の最初の指し手がプレイヤーの手番ではない場合）を正しく実行します。
+- `doMemorizeMove` および `giveUpMemorize` の修正：
+  - `_isMemorizeProcessing` が `true` の場合は処理を無視（早期リターン）します。
+  - CPUの指し手を `setTimeout` で実行する直前に `_isMemorizeProcessing = true` に設定し、`setTimeout` の処理完了後に `false` に戻します。
+  - プレイヤーの選択した手番情報に基づいて、正誤判定（プレイヤーの手かCPUの手か）を行うように調整します。
 
 ---
 
-### 3. UI의 改修と新規コンポーネントの追加
+### 3. 暗記UI의 拡張
 
-#### [NEW] [MemorizePanel.vue](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/renderer/view/tab/MemorizePanel.vue)
-- 画面下部のタブに表示される暗記モード用コントロールパネルです。
-  - KIFファイルのドラッグ＆ドロップ/選択エリア
-  - 抽出された問題の一覧リスト（選択ボタン）
-  - 「最初から」「ギブアップ（1手ヒント表示）」ボタン
-  - 正解率や手数（進捗）の表示
-
-#### [MODIFY] [TabPane.vue](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/renderer/view/tab/TabPane.vue)
-- `Tab.MEMORIZE` の切り替えを追加し、`MemorizePanel.vue` を描画するように設定します。
-- 不要なタブ（検討、モニターなど）を初期リストから非表示、またはコメントアウトします。
+#### [MODIFY] [MemorizePanel.vue](file:///c:/Users/khnhb/Downloads/game/shogi_memory/src/renderer/view/tab/MemorizePanel.vue)
+- 「自分の手番」を選択するトグルスイッチ（先手/後手/デフォルト）を追加します。
+- ユーザーが手番を変更した際、`store.startMemorizeProblem(store.currentProblemIndex, selectedColor)` を呼び出して選択した手番で問題を再開します。
+- `store.isMemorizeProcessing` が `true` の間、「ギブアップ（1手進める）」ボタンや「最初からやり直す」ボタンを `disabled` にします。
 
 ---
 
 ## 検証計画
 
 ### 手動検証
-1. **不要機能の整理の確認**:
-   - 画面起動時に、USI設定などの不要なメニュー項目やタブが表示されなくなっていることを確認します。
-2. **KIFインポートと問題抽出**:
-   - 変化手順（分岐）を含むKIFファイルを読み込ませ、複数の問題に分割されてリスト表示されることを確認します。
-3. **暗記クイズの動作**:
-   - プレイヤーの手番で正しい手を指したとき、駒音が再生されて手番がCPUに進むことを確認します。
-   - CPUが自動的に自分の手番の指し手を盤面に反映することを確認します。
-   - 間違った手を指した際、駒が元の位置に戻り、手数が進まないことを確認します。
+1. **ドラッグ＆ドロップ動作の再確認**:
+   - 画面の任意の場所にKIFファイルをドロップした際、`invalid URI` エラーが出ないこと、およびインポートエリアにドロップした際には正常に棋譜がインポートされることを確認します。
+2. **手番選択（先手・後手）の検証**:
+   - 暗記開始後、手番を「先手」から「後手」に切り替えた際、1手目をCPUが自動で指し、プレイヤーが後手番（2手目）から暗記を開始できることを確認します。
+3. **連打防止の検証**:
+   - 「ギブアップ」ボタンを連打した際、手番や表示が壊れることなく、500msの間隔を置いて1手ずつ正常に進行することを確認します。

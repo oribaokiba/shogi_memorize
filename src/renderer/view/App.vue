@@ -146,7 +146,7 @@ onMounted(() => {
     event.preventDefault();
   });
   body.addEventListener("drop", (event: DragEvent) => {
-    if (event.dataTransfer && event.dataTransfer.files[0]) {
+    if (isNative() && event.dataTransfer && event.dataTransfer.files[0]) {
       try {
         const path = api.getPathForFile(event.dataTransfer.files[0]);
         if (path) {

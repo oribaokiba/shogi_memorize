@@ -162,6 +162,8 @@ class Store {
   private _memorizeProblems: MemorizeProblem[] = [];
   private _currentProblemIndex = -1;
   private _memorizeStep = 0;
+  private _memorizePlayerColor?: Color;
+  private _isMemorizeProcessing = false;
   private _customLayout: LayoutProfile | null = null;
   private _isAppSettingsDialogVisible = false;
   private _pvPreview?: PVPreview;
@@ -1648,6 +1650,14 @@ class Store {
     return this._memorizeStep;
   }
 
+  get memorizePlayerColor(): Color | undefined {
+    return this._memorizePlayerColor;
+  }
+
+  get isMemorizeProcessing(): boolean {
+    return this._isMemorizeProcessing;
+  }
+
   importKIFForMemorize(data: string): Error | undefined {
     const recordOrError = importKIF(data);
     if (recordOrError instanceof Error) {
@@ -1656,6 +1666,8 @@ class Store {
     this._memorizeProblems = this.extractProblems(recordOrError);
     this._currentProblemIndex = -1;
     this._memorizeStep = 0;
+    this._memorizePlayerColor = undefined;
+    this._isMemorizeProcessing = false;
     this._appState = AppState.NORMAL;
     if (this._memorizeProblems.length > 0) {
       this.startMemorizeProblem(0);
@@ -1663,7 +1675,7 @@ class Store {
     return undefined;
   }
 
-  startMemorizeProblem(index: number): void {
+  startMemorizeProblem(index: number, playerColor?: Color): void {
     if (index < 0 || index >= this._memorizeProblems.length) {
       return;
     }
@@ -1671,10 +1683,14 @@ class Store {
     this._appState = AppState.MEMORIZE;
     this._currentProblemIndex = index;
     this._memorizeStep = 0;
+    this._isMemorizeProcessing = false;
+    this._memorizePlayerColor = playerColor;
 
     this.recordManager.reset();
+
+    const actualPlayerColor = playerColor !== undefined ? playerColor : problem.playerColor;
     
-    if (problem.moves.length > 0 && problem.moves[0].color !== problem.playerColor) {
+    if (problem.moves.length > 0 && problem.moves[0].color !== actualPlayerColor) {
       this.recordManager.appendMove({ move: problem.moves[0] });
       this._memorizeStep = 1;
     }
@@ -1682,7 +1698,7 @@ class Store {
 
   doMemorizeMove(move: Move): void {
     const problem = this.currentProblem;
-    if (!problem) {
+    if (!problem || this._isMemorizeProcessing) {
       return;
     }
     const expectedMove = problem.moves[this._memorizeStep];
@@ -1706,8 +1722,10 @@ class Store {
         return;
       }
 
+      const actualPlayerColor = this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
       const nextExpectedMove = problem.moves[this._memorizeStep];
-      if (nextExpectedMove && nextExpectedMove.color !== problem.playerColor) {
+      if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
+        this._isMemorizeProcessing = true;
         setTimeout(() => {
           this.recordManager.appendMove({ move: nextExpectedMove });
           try {
@@ -1716,6 +1734,7 @@ class Store {
             useErrorStore().add(e);
           }
           this._memorizeStep++;
+          this._isMemorizeProcessing = false;
 
           if (this._memorizeStep >= problem.moves.length) {
             useMessageStore().enqueue({ text: "正解です！クリアしました！" });
@@ -1737,7 +1756,7 @@ class Store {
 
   giveUpMemorize(): void {
     const problem = this.currentProblem;
-    if (this.appState !== AppState.MEMORIZE || !problem) {
+    if (this.appState !== AppState.MEMORIZE || !problem || this._isMemorizeProcessing) {
       return;
     }
     const expectedMove = problem.moves[this._memorizeStep];
@@ -1758,8 +1777,10 @@ class Store {
       return;
     }
 
+    const actualPlayerColor = this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
     const nextExpectedMove = problem.moves[this._memorizeStep];
-    if (nextExpectedMove && nextExpectedMove.color !== problem.playerColor) {
+    if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
+      this._isMemorizeProcessing = true;
       setTimeout(() => {
         this.recordManager.appendMove({ move: nextExpectedMove });
         try {
@@ -1768,6 +1789,7 @@ class Store {
           useErrorStore().add(e);
         }
         this._memorizeStep++;
+        this._isMemorizeProcessing = false;
 
         if (this._memorizeStep >= problem.moves.length) {
           useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
