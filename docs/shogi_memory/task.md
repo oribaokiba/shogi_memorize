@@ -1,0 +1,11 @@
+- [x] 暗記モード用の定数・定義 of 追加
+  - [x] `state.ts` に `AppState.MEMORIZE` を追加
+  - [x] `app.ts` に `Tab.MEMORIZE` を追加
+- [x] ストア (`store/index.ts`) の改修
+  - [x] 暗記用ステート（問題リスト、現在手番等）の定義
+  - [x] `doMove` 内に指し手正誤判定とCPU自動実行ロジックを追加
+  - [x] KIFインポート時の分岐解析ロジック（DFSなど）の実装
+- [x] UIコンポーネントの実装
+  - [x] 新規UI `MemorizePanel.vue` の作成
+  - [x] `TabPane.vue` への `Tab.MEMORIZE` 追加と不要タブの整理
+- [/] 動作検証
