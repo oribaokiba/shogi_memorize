@@ -243,12 +243,16 @@ void onFileDrop;
 .problem-select {
   flex: 1;
   padding: 4px 8px;
-  background: var(--button-bg-color);
+  background-color: var(--text-bg-color);
   border: 1px solid var(--border-color);
-  color: var(--main-color);
+  color: var(--text-color);
   border-radius: 4px;
   font-size: 0.9rem;
   cursor: pointer;
+}
+.problem-select option {
+  background-color: var(--text-bg-color);
+  color: var(--text-color);
 }
 .setting-row {
   gap: 8px;
