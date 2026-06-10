@@ -1,11 +1,9 @@
 import api, { isNative } from "@/renderer/ipc/api.js";
 import {
   Color,
-  exportCSA,
   ImmutableRecord,
   Move,
   PositionChange,
-  formatSpecialMove,
   exportKIF,
   importKIF,
   RecordMetadataKey,
@@ -15,144 +13,45 @@ import {
   exportKI2,
   RecordFormatType,
   exportJKFString,
-  countJishogiDeclarationPoint,
-  judgeJishogiDeclaration,
-  JishogiDeclarationRule,
-  countJishogiPoint,
   Position,
   exportBOD,
+  exportCSA,
   InitialPositionType,
   ImmutableNode,
 } from "tsshogi";
 import { reactive, UnwrapNestedRefs } from "vue";
-import { defaultGameSettings, GameSettings } from "@/common/settings/game.js";
-import { ClockSoundTarget, Tab, TextDecodingRule } from "@/common/settings/app.js";
-import { beepShort, beepUnlimited, playPieceBeat, stopBeep } from "@/renderer/devices/audio.js";
+import { TextDecodingRule } from "@/common/settings/app.js";
+import { playPieceBeat } from "@/renderer/devices/audio.js";
 import {
   RecordManager,
-  SearchInfoSenderType,
-  SearchInfo as SearchInfoParam,
   ChangePositionHandler,
   UpdateCustomDataHandler,
   PieceSet,
   UpdateTreeHandler,
 } from "@/renderer/record/manager.js";
-import { GameManager } from "@/renderer/game/game.js";
-import { calculateGameStatistics, GameResults, SPRTSummary } from "@/renderer/game/result.js";
-import { Clock } from "@/renderer/game/clock.js";
-import { generateRecordFileName, join } from "@/renderer/helpers/path.js";
-import { ResearchSettings } from "@/common/settings/research.js";
-import { USIPlayerMonitor, USIMonitor } from "./usi.js";
-import { AppState, ResearchState } from "@/common/control/state.js";
+import { generateRecordFileName } from "@/renderer/helpers/path.js";
+import { AppState } from "@/common/control/state.js";
 import { useMessageStore } from "./message.js";
-import { AnalysisManager } from "./analysis.js";
-import { AnalysisSettings } from "@/common/settings/analysis.js";
-import { MateSearchSettings } from "@/common/settings/mate.js";
-import { LogLevel } from "@/common/log.js";
-import { defaultPlayerBuilder } from "@/renderer/players/builder.js";
-import { USIInfoCommand } from "@/common/game/usi.js";
-import { ResearchManager } from "./research.js";
-import { SearchInfo } from "@/renderer/players/player.js";
 import { useAppSettings } from "./settings.js";
 import { t } from "@/common/i18n/index.js";
-import { MateSearchManager } from "./mate.js";
 import { detectUnsupportedRecordProperties } from "@/renderer/helpers/record.js";
 import {
   RecordFileFormat,
   detectRecordFileFormatByPath,
   getStandardRecordFileFormats,
 } from "@/common/file/record.js";
-import { setOnStartSearchHandler, setOnUpdateUSIInfoHandler } from "@/renderer/players/usi.js";
 import { useErrorStore } from "./error.js";
 import { useBusyState } from "./busy.js";
 import { Confirmation, useConfirmationStore } from "./confirm.js";
 import { LayoutProfile } from "@/common/settings/layout.js";
 import { clearURLParams, loadRecordForWebApp, saveRecordForWebApp } from "./webapp.js";
-import { CommentBehavior } from "@/common/settings/comment.js";
-import { Attachment, ListItem } from "@/common/message.js";
-import { ParallelGameManager, ParallelGameProgress } from "@/renderer/game/parallel.js";
-
-type CandidateMove = {
-  move: Move;
-  score?: number; // 手番側視点の数値スコア（showArrowScore が有効な場合のみ設定）
-};
+import { ListItem } from "@/common/message.js";
 
 export type MemorizeProblem = {
   name: string;
   moves: Move[];
   playerColor: Color;
 };
-
-export type PVPreview = {
-  position: ImmutablePosition;
-  engineName?: string;
-  multiPV?: number;
-  depth?: number;
-  selectiveDepth?: number;
-  score?: number;
-  mate?: number;
-  lowerBound?: boolean;
-  upperBound?: boolean;
-  pv: Move[];
-};
-
-function getMessageAttachmentsByGameResults(
-  results: GameResults,
-  sprtSummary?: SPRTSummary,
-): Attachment[] {
-  const statistics = calculateGameStatistics(results);
-  const items: ListItem[] = [
-    {
-      text: results.player1.name,
-      children: [
-        `${t.wins}: ${results.player1.win}`,
-        `${t.winsOnBlack}: ${results.player1.winBlack}`,
-        `${t.winsOnWhite}: ${results.player1.winWhite}`,
-      ],
-    },
-    {
-      text: results.player2.name,
-      children: [
-        `${t.wins}: ${results.player2.win}`,
-        `${t.winsOnBlack}: ${results.player2.winBlack}`,
-        `${t.winsOnWhite}: ${results.player2.winWhite}`,
-      ],
-    },
-    { text: `${t.draws}: ${results.draw}` },
-    { text: `${t.validGames}: ${results.total - results.invalid}` },
-    { text: `${t.invalidGames}: ${results.invalid}` },
-    {
-      text: `${t.eloRatingDiff} (${t.ignoreDraws})`,
-      children: [
-        `${statistics.rating.toFixed(2)}`,
-        `95% CI: [${statistics.ratingLower.toFixed(1)}, ${statistics.ratingUpper.toFixed(1)}]`,
-      ],
-    },
-  ];
-  if (sprtSummary) {
-    items.push({
-      text: "SPRT",
-      children: [
-        `Elo0=${sprtSummary.elo0.toFixed(2)}, Elo1=${sprtSummary.elo1.toFixed(2)}`,
-        `alpha=${sprtSummary.alpha}, beta=${sprtSummary.beta}`,
-        `5-nomial=[${sprtSummary.pentanomial.loseLose}, ${sprtSummary.pentanomial.loseDraw}, ${sprtSummary.pentanomial.drawDrawOrWinLose}, ${sprtSummary.pentanomial.winDraw}, ${sprtSummary.pentanomial.winWin}]`,
-        `LLR=${sprtSummary.llr.toFixed(4)} [${sprtSummary.lowerBound.toFixed(4)}, ${sprtSummary.upperBound.toFixed(4)}]`,
-        sprtSummary.result,
-      ],
-    });
-  } else {
-    items.push({
-      text: "二項検定", // TODO: i18n
-      children: [
-        `np > 5: ${statistics.npIsGreaterThan5 ? "True" : "False"}`,
-        `${t.zValue}: ${statistics.zValue.toFixed(2)}`,
-        `${t.significance5pc}: ${statistics.significance5pc ? "True" : "False"}`,
-        `${t.significance1pc}: ${statistics.significance1pc ? "True" : "False"}`,
-      ],
-    });
-  }
-  return [{ type: "list", items }];
-}
 
 class Store {
   private recordManager = new RecordManager(loadRecordForWebApp());
@@ -164,18 +63,6 @@ class Store {
   private _isMemorizeProcessing = false;
   private _customLayout: LayoutProfile | null = null;
   private _isAppSettingsDialogVisible = false;
-  private _pvPreview?: PVPreview;
-  private usiMonitor = new USIMonitor();
-  private blackClock = new Clock();
-  private whiteClock = new Clock();
-  private gameManager = new GameManager(this.recordManager, this.blackClock, this.whiteClock);
-  private parallelGameManager = new ParallelGameManager();
-  private _parallelGameProgress?: ParallelGameProgress;
-  private _gameSettings: GameSettings = defaultGameSettings();
-  private analysisManager = new AnalysisManager(this.recordManager);
-  private mateSearchManager = new MateSearchManager();
-  private _researchState = ResearchState.IDLE;
-  private researchManager = new ResearchManager();
   private _reactive: UnwrapNestedRefs<Store>;
   private garbledNotified = false;
   private onChangePositionHandlers: ChangePositionHandler[] = [];
@@ -189,7 +76,6 @@ class Store {
       .on("changePosition", () => {
         this.onChangePositionHandlers.forEach((handler) => handler());
         saveRecordForWebApp(this.record);
-        this.updateResearchPosition();
       })
       .on("updateTree", () => {
         this.onUpdateRecordTreeHandlers.forEach((handler) => handler());
@@ -211,39 +97,6 @@ class Store {
           returnCode: useAppSettings().returnCode,
         };
       });
-    this.gameManager
-      .on("saveRecord", this.onSaveRecord.bind(refs))
-      .on("closed", this.onGameClosed.bind(refs))
-      .on("flipBoard", this.onFlipBoard.bind(refs))
-      .on("pieceBeat", () => playPieceBeat(useAppSettings().pieceVolume))
-      .on("beepShort", this.onBeepShort.bind(refs))
-      .on("beepUnlimited", this.onBeepUnlimited.bind(refs))
-      .on("stopBeep", stopBeep)
-      .on("error", (e) => {
-        useErrorStore().add(e);
-      });
-    this.parallelGameManager
-      .on("progress", this.onParallelGameProgress.bind(refs))
-      .on("saveRecord", this.onSaveRecord.bind(refs))
-      .on("closed", this.onParallelGameClosed.bind(refs))
-      .on("error", (e) => {
-        useErrorStore().add(e);
-      });
-    this.researchManager
-      .on("updateSearchInfo", this.onUpdateSearchInfo.bind(refs))
-      .on("error", (e) => {
-        useErrorStore().add(e);
-      });
-    this.analysisManager.on("finish", this.onFinish.bind(refs)).on("error", (e) => {
-      useErrorStore().add(e);
-    });
-    this.mateSearchManager
-      .on("checkmate", this.onCheckmate.bind(refs))
-      .on("notImplemented", this.onNotImplemented.bind(refs))
-      .on("noMate", this.onNoMate.bind(refs))
-      .on("error", this.onCheckmateError.bind(refs));
-    setOnStartSearchHandler(this.endUSIIteration.bind(refs));
-    setOnUpdateUSIInfoHandler(this.updateUSIInfo.bind(refs));
   }
 
   addEventListener(event: "changePosition", handler: ChangePositionHandler): void;
@@ -312,25 +165,6 @@ class Store {
     this.recordManager.updateStandardMetadata(update);
   }
 
-  appendSearchComment(
-    type: SearchInfoSenderType,
-    searchInfo: SearchInfoParam,
-    behavior: CommentBehavior,
-    options?: {
-      header?: string;
-      engineName?: string;
-    },
-  ): void {
-    const appSettings = useAppSettings();
-    this.recordManager.appendSearchComment(
-      type,
-      appSettings.searchCommentFormat,
-      searchInfo,
-      behavior,
-      options,
-    );
-  }
-
   appendMovesSilently(moves: Move[], opt?: DoMoveOption): number {
     return this.recordManager.appendMovesSilently(moves, opt);
   }
@@ -339,28 +173,12 @@ class Store {
     return this._appState;
   }
 
-  get researchState(): ResearchState {
-    return this._researchState;
-  }
-
   get customLayout() {
     return this._customLayout;
   }
 
   updateLayoutProfile(layout: LayoutProfile | null): void {
     this._customLayout = layout;
-  }
-
-  get pvPreview(): PVPreview | undefined {
-    return this._pvPreview;
-  }
-
-  showPVPreviewDialog(pvPreview: PVPreview): void {
-    this._pvPreview = pvPreview;
-  }
-
-  closePVPreviewDialog(): void {
-    this._pvPreview = undefined;
   }
 
   showPasteDialog(mode: "standard" | "mergeIntoRoot" | "mergeIntoCurrent" = "standard"): void {
@@ -377,75 +195,15 @@ class Store {
     }
   }
 
-  showGameDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.GAME_DIALOG;
-    }
-  }
-
-  showCSAGameDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.CSA_GAME_DIALOG;
-    }
-  }
-
-  showAnalysisDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.ANALYSIS_DIALOG;
-    }
-  }
-
-  showMateSearchDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.MATE_SEARCH_DIALOG;
-    }
-  }
-
-  showUsiEngineManagementDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.USI_ENGINES_DIALOG;
-    }
-  }
-
   showRecordFileHistoryDialog(): void {
     if (this.appState === AppState.NORMAL) {
       this._appState = AppState.RECORD_FILE_HISTORY_DIALOG;
     }
   }
 
-  showBatchConversionDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.BATCH_CONVERSION_DIALOG;
-    }
-  }
-
-  showExportBoardImageDialog() {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.EXPORT_POSITION_IMAGE_DIALOG;
-    }
-  }
-
-  showLaunchUSIEngineDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.LAUNCH_USI_ENGINE_DIALOG;
-    }
-  }
-
-  showConnectToCSAServerDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.CONNECT_TO_CSA_SERVER_DIALOG;
-    }
-  }
-
   showLoadRemoteFileDialog(): void {
     if (this.appState === AppState.NORMAL) {
       this._appState = AppState.LOAD_REMOTE_FILE_DIALOG;
-    }
-  }
-
-  showShareDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.SHARE_DIALOG;
     }
   }
 
@@ -467,31 +225,14 @@ class Store {
     }
   }
 
-  showElapsedTimeChartDialog(): void {
-    if (this.appState === AppState.NORMAL) {
-      this._appState = AppState.ELAPSED_TIME_CHART_DIALOG;
-    }
-  }
-
   destroyModalDialog(): void {
     if (
       this.appState === AppState.PASTE_DIALOG ||
-      this.appState === AppState.GAME_DIALOG ||
-      this.appState === AppState.CSA_GAME_DIALOG ||
-      this.appState === AppState.ANALYSIS_DIALOG ||
-      this.appState === AppState.MATE_SEARCH_DIALOG ||
-      this.appState === AppState.USI_ENGINES_DIALOG ||
-      this.appState === AppState.EXPORT_POSITION_IMAGE_DIALOG ||
       this.appState === AppState.RECORD_FILE_HISTORY_DIALOG ||
-      this.appState === AppState.BATCH_CONVERSION_DIALOG ||
-      this.appState === AppState.LAUNCH_USI_ENGINE_DIALOG ||
-      this.appState === AppState.CONNECT_TO_CSA_SERVER_DIALOG ||
       this.appState === AppState.LOAD_REMOTE_FILE_DIALOG ||
-      this.appState === AppState.SHARE_DIALOG ||
       this.appState === AppState.ADD_BOOK_MOVES_DIALOG ||
       this.appState === AppState.RESET_BOOK_DIALOG ||
-      this.appState === AppState.SEARCH_DUPLICATE_POSITIONS_DIALOG ||
-      this.appState === AppState.ELAPSED_TIME_CHART_DIALOG
+      this.appState === AppState.SEARCH_DUPLICATE_POSITIONS_DIALOG
     ) {
       this._appState = AppState.NORMAL;
     }
@@ -515,313 +256,6 @@ class Store {
     this._isAppSettingsDialogVisible = false;
   }
 
-  get usiMonitors(): USIPlayerMonitor[] {
-    return this.usiMonitor.sessions;
-  }
-
-  get candidates(): CandidateMove[] {
-    const appSettings = useAppSettings();
-    const maxScoreDiff = appSettings.arrowScoreDiffRange;
-    const sfen = this.recordManager.record.position.sfen;
-    // 優先度1: 検討の第1エンジン（研究セッションの中で最小の sessionID）
-    // 優先度2: 対局中の手番側エンジン（ポンダー中でないセッション）
-    // 評価値ラベルはこのセッションのみ表示する。他のセッションは矢印のみ表示する。
-    const preferredSession =
-      this.usiMonitor.sessions.find((s) => this.researchManager.isSessionExists(s.sessionID)) ||
-      this.usiMonitor.sessions.find((s) => !s.ponderMove);
-    const candidates: CandidateMove[] = [];
-    const usiSet = new Set<string>();
-    // 優先セッションを先頭に並べ替え、同一手の重複除去で優先セッションが先に登録されるようにする
-    const orderedSessions = preferredSession
-      ? [preferredSession, ...this.usiMonitor.sessions.filter((s) => s !== preferredSession)]
-      : this.usiMonitor.sessions;
-    for (const session of orderedSessions) {
-      if (session.ponderMove) {
-        continue;
-      }
-      const isPreferred = session === preferredSession;
-      let entryCount = 0;
-      let maxScore = -Infinity;
-      for (const info of session.latestInfo) {
-        if (entryCount >= appSettings.maxArrowsPerEngine) {
-          break;
-        }
-        if (info.multiPV && info.multiPV > appSettings.maxArrowsPerEngine) {
-          break;
-        }
-        if (!info.pv?.length) {
-          continue;
-        }
-        const score =
-          info.score !== undefined
-            ? info.score
-            : info.scoreMate
-              ? info.scoreMate > 0
-                ? 1e8 - info.scoreMate
-                : -1e8 - info.scoreMate
-              : undefined;
-        if (score !== undefined) {
-          if (score < maxScore - maxScoreDiff) {
-            continue;
-          } else if (score > maxScore) {
-            maxScore = score;
-          }
-        }
-        const usi = info.pv[0];
-        if (usiSet.has(usi)) {
-          continue;
-        }
-        if (info.position !== sfen) {
-          continue;
-        }
-        const pos = Position.newBySFEN(info.position);
-        if (!pos) {
-          continue;
-        }
-        const move = pos.createMoveByUSI(usi);
-        if (!move || !pos.doMove(move)) {
-          continue;
-        }
-        const candidateScore = isPreferred && appSettings.showArrowScore ? score : undefined;
-        candidates.push({ move, score: candidateScore });
-        usiSet.add(usi);
-        entryCount++;
-      }
-    }
-    return candidates;
-  }
-
-  isPausedResearchEngine(sessionID: number): boolean {
-    return this.researchManager.isPaused(sessionID);
-  }
-
-  pauseResearchEngine(sessionID: number): void {
-    this.researchManager.pause(sessionID);
-  }
-
-  unpauseResearchEngine(sessionID: number): void {
-    this.researchManager.unpause(sessionID);
-  }
-
-  getResearchMultiPV(sessionID: number): number | undefined {
-    return this.researchManager.getMultiPV(sessionID);
-  }
-
-  setResearchMultiPV(sessionID: number, multiPV: number): void {
-    this.researchManager.setMultiPV(sessionID, multiPV);
-  }
-
-  endUSIIteration(sessionID: number): void {
-    this.usiMonitor.endIteration(sessionID);
-  }
-
-  updateUSIInfo(
-    sessionID: number,
-    position: ImmutablePosition,
-    name: string,
-    info: USIInfoCommand,
-    ponderMove?: Move,
-  ): void {
-    if (this.appState === AppState.PARALLEL_GAME) {
-      return;
-    }
-    const appSettings = useAppSettings();
-    this.usiMonitor.update(
-      sessionID,
-      position,
-      name,
-      info,
-      appSettings.maxPVTextLength,
-      ponderMove,
-    );
-  }
-
-  get blackTime(): number {
-    return this.blackClock.time;
-  }
-
-  get blackByoyomi(): number {
-    return this.blackClock.byoyomi;
-  }
-
-  get whiteTime(): number {
-    return this.whiteClock.time;
-  }
-
-  get whiteByoyomi(): number {
-    return this.whiteClock.byoyomi;
-  }
-
-  startGame(settings: GameSettings): void {
-    if (useBusyState().isBusy) {
-      return;
-    }
-    if (this.appState !== AppState.NORMAL && this.appState !== AppState.GAME_DIALOG) {
-      return;
-    }
-    useBusyState().retain();
-    api
-      .saveGameSettings(settings)
-      .then(async () => {
-        this._gameSettings = settings;
-        const appSettings = useAppSettings();
-        if (settings.parallelism >= 2 || settings.sprtEnabled) {
-          this._parallelGameProgress = undefined;
-          const playerBuilder = defaultPlayerBuilder({
-            timeoutSeconds: appSettings.engineTimeoutSeconds,
-            discardUSIInfo: !settings.enableComment,
-          });
-          this._appState = AppState.PARALLEL_GAME; // info コマンドの表示を抑制するために start より前に state を変更する。
-          await this.parallelGameManager.start(settings, playerBuilder);
-        } else {
-          const playerBuilder = defaultPlayerBuilder({
-            timeoutSeconds: appSettings.engineTimeoutSeconds,
-          });
-          this._appState = AppState.GAME;
-          await this.gameManager.startLinear(settings, playerBuilder);
-        }
-      })
-      .catch((e) => {
-        useErrorStore().add(e);
-        this._appState = AppState.NORMAL;
-      })
-      .finally(() => {
-        useBusyState().release();
-      });
-  }
-
-  get gameSettings(): GameSettings {
-    return this._gameSettings;
-  }
-
-  get gameResults(): GameResults {
-    return this.gameManager.results;
-  }
-
-  stopGame(): void {
-    switch (this.appState) {
-      case AppState.GAME:
-        // 連続対局の場合は確認ダイアログを表示する。
-        if (this.gameSettings.repeat >= 2) {
-          this.showConfirmation({
-            message: t.areYouSureWantToQuitGames,
-            onOk: () => this.gameManager.stop(),
-          });
-        } else {
-          this.gameManager.stop();
-        }
-        break;
-      case AppState.PARALLEL_GAME:
-        this.showConfirmation({
-          message: t.areYouSureWantToQuitGames,
-          onOk: () => this.parallelGameManager.stop(),
-        });
-        break;
-    }
-  }
-
-  showGameResults(): void {
-    if (this.appState !== AppState.GAME) {
-      return;
-    }
-    const results = this.gameManager.results;
-    useMessageStore().enqueue({
-      text: t.gameProgress,
-      attachments: getMessageAttachmentsByGameResults(results),
-      withCopyButton: true,
-    });
-  }
-
-  get parallelGameProgress(): ParallelGameProgress | undefined {
-    return this._parallelGameProgress;
-  }
-
-  private onParallelGameProgress(progress: ParallelGameProgress): void {
-    this._parallelGameProgress = progress;
-  }
-
-  private onGameClosed(results: GameResults, specialMoveType?: SpecialMoveType): void {
-    if (this.appState !== AppState.GAME) {
-      return;
-    }
-    api.log(LogLevel.INFO, `game end: ${JSON.stringify(results)}`);
-    if (results && results.total >= 2) {
-      useMessageStore().enqueue({
-        text: t.allGamesCompleted,
-        attachments: getMessageAttachmentsByGameResults(results),
-        withCopyButton: true,
-      });
-    } else if (specialMoveType) {
-      useMessageStore().enqueue({
-        text: `${t.gameEnded}（${formatSpecialMove(specialMoveType, this.record.current.nextColor)})`,
-      });
-    }
-    this._appState = AppState.NORMAL;
-  }
-
-  private onParallelGameClosed(results: GameResults, sprtSummary?: SPRTSummary): void {
-    if (this.appState !== AppState.PARALLEL_GAME) {
-      return;
-    }
-    useMessageStore().enqueue({
-      text: t.allGamesCompleted,
-      attachments: getMessageAttachmentsByGameResults(results, sprtSummary),
-      withCopyButton: true,
-    });
-    this._appState = AppState.NORMAL;
-  }
-
-  private onFlipBoard(flip: boolean): void {
-    const appSettings = useAppSettings();
-    if (appSettings.boardFlipping !== flip) {
-      useAppSettings().flipBoard();
-    }
-  }
-
-  private onSaveRecord(dir: string, recordManager: RecordManager = this.recordManager): void {
-    const appSettings = useAppSettings();
-    const fname = generateRecordFileName(recordManager.record, {
-      template: appSettings.recordFileNameTemplate,
-      extension: appSettings.defaultRecordFileFormat,
-    });
-    const path = join(dir, fname);
-    this.saveRecordByPath(path, { recordManager }).catch((e) => {
-      useErrorStore().add(e);
-    });
-  }
-
-  private onBeepShort(): void {
-    const appSettings = useAppSettings();
-    if (appSettings.clockSoundTarget === ClockSoundTarget.ONLY_USER && !this.isMovableByUser) {
-      return;
-    }
-    // An exception may be thrown if the audio API is not supported.
-    try {
-      beepShort({
-        frequency: appSettings.clockPitch,
-        volume: appSettings.clockVolume,
-      });
-    } catch (e) {
-      useErrorStore().add(e);
-    }
-  }
-
-  private onBeepUnlimited(): void {
-    const appSettings = useAppSettings();
-    if (appSettings.clockSoundTarget === ClockSoundTarget.ONLY_USER && !this.isMovableByUser) {
-      return;
-    }
-    // An exception may be thrown if the audio API is not supported.
-    try {
-      beepUnlimited({
-        frequency: appSettings.clockPitch,
-        volume: appSettings.clockVolume,
-      });
-    } catch (e) {
-      useErrorStore().add(e);
-    }
-  }
-
   doMove(move: Move): void {
     if (this.appState === AppState.MEMORIZE) {
       this.doMemorizeMove(move);
@@ -834,189 +268,11 @@ class Store {
       return;
     }
     const appSettings = useAppSettings();
-    // An exception may be thrown if the audio API is not supported.
     try {
       playPieceBeat(appSettings.pieceVolume);
     } catch (e) {
       useErrorStore().add(e);
     }
-  }
-
-  private onFinish(): void {
-    if (this.appState === AppState.ANALYSIS) {
-      useMessageStore().enqueue({ text: "棋譜解析が終了しました。" });
-      this._appState = AppState.NORMAL;
-    }
-  }
-
-  showResearchDialog(): void {
-    if (this._researchState === ResearchState.IDLE) {
-      this._researchState = ResearchState.STARTUP_DIALOG;
-    }
-  }
-
-  closeResearchDialog(): void {
-    if (this._researchState === ResearchState.STARTUP_DIALOG) {
-      this._researchState = ResearchState.IDLE;
-    }
-  }
-
-  startResearch(researchSettings: ResearchSettings): void {
-    if (this._researchState !== ResearchState.STARTUP_DIALOG || useBusyState().isBusy) {
-      return;
-    }
-    useBusyState().retain();
-    if (!researchSettings.usi) {
-      useErrorStore().add(new Error("エンジンが設定されていません。"));
-      return;
-    }
-    api
-      .saveResearchSettings(researchSettings)
-      .then(() => this.researchManager.launch(researchSettings))
-      .then(() => {
-        this._researchState = ResearchState.RUNNING;
-        this.updateResearchPosition();
-        const appSettings = useAppSettings();
-        if (
-          appSettings.tab !== Tab.SEARCH &&
-          appSettings.tab !== Tab.PV &&
-          appSettings.tab !== Tab.CHART &&
-          appSettings.tab !== Tab.PERCENTAGE_CHART &&
-          appSettings.tab !== Tab.MONITOR
-        ) {
-          useAppSettings().updateAppSettings({ tab: Tab.PV });
-        }
-      })
-      .catch((e) => {
-        useErrorStore().add("検討の初期化中にエラーが出ました: " + e);
-      })
-      .finally(() => {
-        useBusyState().release();
-      });
-  }
-
-  stopResearch(): void {
-    if (this._researchState !== ResearchState.RUNNING) {
-      return;
-    }
-    this.researchManager.close();
-    this._researchState = ResearchState.IDLE;
-  }
-
-  isResearchEngineSessionID(sessionID: number): boolean {
-    return this.researchManager.isSessionExists(sessionID);
-  }
-
-  private onUpdateSearchInfo(type: SearchInfoSenderType, info: SearchInfo): void {
-    this.recordManager.updateSearchInfo(type, info);
-  }
-
-  startAnalysis(analysisSettings: AnalysisSettings): void {
-    if (this.appState !== AppState.ANALYSIS_DIALOG || useBusyState().isBusy) {
-      return;
-    }
-    useBusyState().retain();
-    api
-      .saveAnalysisSettings(analysisSettings)
-      .then(() => this.analysisManager.start(analysisSettings))
-      .then(() => {
-        this._appState = AppState.ANALYSIS;
-      })
-      .catch((e) => {
-        useErrorStore().add("検討の初期化中にエラーが出ました: " + e);
-      })
-      .finally(() => {
-        useBusyState().release();
-      });
-  }
-
-  stopAnalysis(): void {
-    if (this.appState !== AppState.ANALYSIS) {
-      return;
-    }
-    this.analysisManager.close();
-    this._appState = AppState.NORMAL;
-  }
-
-  startMateSearch(mateSearchSettings: MateSearchSettings): void {
-    if (this.appState !== AppState.MATE_SEARCH_DIALOG || useBusyState().isBusy) {
-      return;
-    }
-    useBusyState().retain();
-    if (!mateSearchSettings.usi) {
-      useErrorStore().add(new Error(t.engineNotSelected));
-      return;
-    }
-    api
-      .saveMateSearchSettings(mateSearchSettings)
-      .then(() => this.mateSearchManager.start(mateSearchSettings, this.recordManager.record))
-      .then(() => {
-        this._appState = AppState.MATE_SEARCH;
-        const appSettings = useAppSettings();
-        if (appSettings.tab !== Tab.SEARCH && appSettings.tab !== Tab.PV) {
-          useAppSettings().updateAppSettings({ tab: Tab.SEARCH });
-        }
-      })
-      .catch((e) => {
-        useErrorStore().add(e);
-      })
-      .finally(() => {
-        useBusyState().release();
-      });
-  }
-
-  stopMateSearch(): void {
-    if (this.appState !== AppState.MATE_SEARCH) {
-      return;
-    }
-    this.mateSearchManager.close();
-    this._appState = AppState.NORMAL;
-  }
-
-  private onCheckmate(moves: Move[]): void {
-    if (this.appState !== AppState.MATE_SEARCH) {
-      return;
-    }
-    this._appState = AppState.NORMAL;
-    const position = this.recordManager.record.position;
-    this.showConfirmation({
-      message: t.mateInNPlyDoYouWantToDisplay(moves.length),
-      onOk: () => {
-        this.showPVPreviewDialog({
-          position,
-          mate: moves.length,
-          pv: moves,
-        });
-      },
-    });
-  }
-
-  private onNotImplemented(): void {
-    if (this.appState !== AppState.MATE_SEARCH) {
-      return;
-    }
-    useErrorStore().add(new Error(t.thisEngineNotSupportsMateSearch));
-    this._appState = AppState.NORMAL;
-  }
-
-  private onNoMate(): void {
-    if (this.appState !== AppState.MATE_SEARCH) {
-      return;
-    }
-    useMessageStore().enqueue({ text: t.noMateFound });
-    this._appState = AppState.NORMAL;
-  }
-
-  private onCheckmateError(e: unknown): void {
-    if (this.appState !== AppState.MATE_SEARCH) {
-      return;
-    }
-    useErrorStore().add(e);
-    this._appState = AppState.NORMAL;
-  }
-
-  private updateResearchPosition(): void {
-    this.researchManager?.updatePosition(this.recordManager.record);
   }
 
   resetRecord(mode: "keepRootPosition" | "hirateSetup" = "keepRootPosition"): void {
@@ -1115,19 +371,19 @@ class Store {
   }
 
   goForward(): void {
-    if (this.appState === AppState.NORMAL || this.appState === AppState.ELAPSED_TIME_CHART_DIALOG) {
+    if (this.appState === AppState.NORMAL) {
       this.recordManager.goForward();
     }
   }
 
   goBack(): void {
-    if (this.appState === AppState.NORMAL || this.appState === AppState.ELAPSED_TIME_CHART_DIALOG) {
+    if (this.appState === AppState.NORMAL) {
       this.recordManager.goBack();
     }
   }
 
   changePly(ply: number): void {
-    if (this.appState === AppState.NORMAL || this.appState === AppState.ELAPSED_TIME_CHART_DIALOG) {
+    if (this.appState === AppState.NORMAL) {
       this.recordManager.changePly(ply);
     }
   }
@@ -1301,7 +557,7 @@ class Store {
         }
       })
       .catch((e) => {
-        useErrorStore().add("棋譜の読み込み中にエラーが出ました: " + e); // TODO: i18n
+        useErrorStore().add("棋譜の読み込み中にエラーが出ました: " + e);
       })
       .finally(() => {
         useBusyState().release();
@@ -1446,63 +702,6 @@ class Store {
       .finally(() => useBusyState().release());
   }
 
-  showJishogiPoints(): void {
-    const position = this.recordManager.record.position;
-    const blackTotalPoint = countJishogiPoint(position, Color.BLACK);
-    const blackPoint = countJishogiDeclarationPoint(position, Color.BLACK);
-    const black24 = judgeJishogiDeclaration(
-      JishogiDeclarationRule.GENERAL24,
-      position,
-      Color.BLACK,
-    );
-    const black27 = judgeJishogiDeclaration(
-      JishogiDeclarationRule.GENERAL27,
-      position,
-      Color.BLACK,
-    );
-    const whiteTotalPoint = countJishogiPoint(position, Color.WHITE);
-    const whitePoint = countJishogiDeclarationPoint(position, Color.WHITE);
-    const white24 = judgeJishogiDeclaration(
-      JishogiDeclarationRule.GENERAL24,
-      position,
-      Color.WHITE,
-    );
-    const white27 = judgeJishogiDeclaration(
-      JishogiDeclarationRule.GENERAL27,
-      position,
-      Color.WHITE,
-    );
-    useMessageStore().enqueue({
-      text: t.jishogiPoints,
-      attachments: [
-        {
-          type: "list",
-          items: [
-            {
-              text: t.sente,
-              children: [
-                `Points (Total): ${blackTotalPoint}`,
-                `Points (Declaration): ${blackPoint}`,
-                `Rule-24: ${black24.toUpperCase()}`,
-                `Rule-27: ${black27.toUpperCase()}`,
-              ],
-            },
-            {
-              text: t.gote,
-              children: [
-                `Points (Total): ${whiteTotalPoint}`,
-                `Points (Declaration): ${whitePoint}`,
-                `Rule-24: ${white24.toUpperCase()}`,
-                `Rule-27: ${white27.toUpperCase()}`,
-              ],
-            },
-          ],
-        },
-      ],
-      withCopyButton: true,
-    });
-  }
-
   get isMovableByUser() {
     switch (this.appState) {
       case AppState.NORMAL:
@@ -1515,8 +714,6 @@ class Store {
         const expectedMove = problem.moves[this._memorizeStep];
         return expectedMove ? expectedMove.color === problem.playerColor : false;
       }
-      case AppState.GAME:
-        return this.gameManager.waitingForHumanPlayerMove;
     }
     return false;
   }
@@ -1536,7 +733,7 @@ class Store {
       ...confirmation,
       onOk: () => {
         if (this.appState !== lastAppState) {
-          useErrorStore().add("確認ダイアログ表示中に他の操作が行われたため処理が中止されました。"); // TODO: i18n
+          useErrorStore().add("確認ダイアログ表示中に他の操作が行われたため処理が中止されました。");
           return;
         }
         confirmation.onOk();
@@ -1654,15 +851,11 @@ class Store {
       }
     } else {
       try {
-        beepShort({
-          frequency: 300,
-          volume: useAppSettings().clockVolume,
-        });
+        playPieceBeat(useAppSettings().pieceVolume);
+        // 不正解時のフィードバック
       } catch (e) {
         // ignore
       }
-      // 不正解時は盤面はそのまま（appendMoveしていないので駒位置は変わらない）
-      // recordManager.resetByCurrentPosition() は呼ばない（棋譜が消えてしまうため）
     }
   }
 

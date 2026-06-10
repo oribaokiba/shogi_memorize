@@ -9,11 +9,7 @@ import {
   MenuItemConstructorOptions,
   shell,
 } from "electron";
-import {
-  openAutoSaveDirectory,
-  openAutoSaveDirectoryForCSA,
-  openSettingsDirectory,
-} from "@/background/settings.js";
+import { openAutoSaveDirectory } from "@/background/settings.js";
 import {
   getTailCommand,
   getFilePath as getLogFilePath,
@@ -25,7 +21,6 @@ import {
   onUpdateAppState,
   sendError,
   sendMessage,
-  sendNotification,
   updateAppSettings,
 } from "@/background/window/ipc.js";
 import { getBookInfo } from "@/background/book/index.js";
@@ -37,18 +32,12 @@ import { t } from "@/common/i18n/index.js";
 import { InitialPositionSFEN } from "tsshogi";
 import { getAppPath } from "@/background/proc/path-electron.js";
 import { chromiumLicensePath, electronLicensePath } from "@/background/proc/path.js";
-import { openCacheDirectory } from "@/background/image/cache.js";
-import { refreshCustomPieceImages } from "./debug.js";
 import { LogType } from "@/common/log.js";
-import { createLayoutManagerWindow } from "./layout.js";
-import { licenseURL, thirdPartyLicenseURL, websiteURL } from "@/common/links/github.js";
+import { licenseURL, thirdPartyLicenseURL } from "@/common/links/github.js";
 import { materialIconsGuideURL } from "@/common/links/google.js";
 import { openPath } from "@/background/helpers/electron.js";
-import { createMonitorWindow } from "./monitor.js";
 import { createListItems } from "@/common/message.js";
 import { BoardLayoutType } from "@/common/settings/layout.js";
-import { getCPUInfo } from "@/background/proc/state.js";
-import { outputStatsHTML } from "@/background/stats/html.js";
 
 const isWin = process.platform === "win32";
 const isMac = process.platform === "darwin";
@@ -119,31 +108,11 @@ function createMenuTemplate(window: BrowserWindow) {
           "CmdOrCtrl+Shift+O",
         ),
         { type: "separator" },
-        menuItem(t.batchConversion, MenuEvent.BATCH_CONVERSION, [AppState.NORMAL]),
-        menuItem(t.share, MenuEvent.SHARE, [AppState.NORMAL]),
-        menuItem(
-          t.exportPositionDiagram,
-          MenuEvent.EXPORT_POSITION_IMAGE,
-          [AppState.NORMAL],
-          "CmdOrCtrl+Shift+E",
-        ),
-        { type: "separator" },
         {
           label: `${t.openAutoSaveDirectory}`,
-          submenu: [
-            {
-              label: t.offlineGame,
-              click: () => {
-                openAutoSaveDirectory().catch(sendError);
-              },
-            },
-            {
-              label: t.csaOnlineGame,
-              click: () => {
-                openAutoSaveDirectoryForCSA().catch(sendError);
-              },
-            },
-          ],
+          click: () => {
+            openAutoSaveDirectory().catch(sendError);
+          },
         },
         { type: "separator" },
         isMac ? { role: "close", label: t.close } : { role: "quit", label: t.quit },
@@ -218,12 +187,7 @@ function createMenuTemplate(window: BrowserWindow) {
             menuItem(t.loseByDefault, MenuEvent.INSERT_LOSE_BY_DEFAULT, [AppState.NORMAL]),
           ],
         },
-        menuItem(
-          t.deleteMoves,
-          MenuEvent.REMOVE_CURRENT_MOVE,
-          [AppState.NORMAL, AppState.MATE_SEARCH],
-          "CmdOrCtrl+D",
-        ),
+        menuItem(t.deleteMoves, MenuEvent.REMOVE_CURRENT_MOVE, [AppState.NORMAL], "CmdOrCtrl+D"),
         { type: "separator" },
         menuItem(t.searchDuplicatePositions, MenuEvent.SEARCH_DUPLICATE_POSITIONS, [
           AppState.NORMAL,
@@ -331,9 +295,6 @@ function createMenuTemplate(window: BrowserWindow) {
           ],
         },
         menuItem(t.changePieceSet, MenuEvent.CHANGE_PIECE_SET, [AppState.POSITION_EDITING]),
-        // NOTE:
-        //   Mac ではこれらのショートカットがメニューに無いとテキスト編集時のショートカット操作ができない。
-        //   https://github.com/sunfish-shogi/shogihome/issues/694
         { type: "separator", visible: isMac },
         { role: "copy", accelerator: "CmdOrCtrl+C", visible: isMac },
         { role: "paste", accelerator: "CmdOrCtrl+V", visible: isMac },
@@ -341,49 +302,6 @@ function createMenuTemplate(window: BrowserWindow) {
         { role: "undo", accelerator: "CmdOrCtrl+Z", visible: isMac },
         { role: "redo", accelerator: "CmdOrCtrl+Shift+Z", visible: isMac },
         { role: "selectAll", accelerator: "CmdOrCtrl+A", visible: isMac },
-      ],
-    },
-    {
-      label: t.game,
-      submenu: [
-        menuItem(t.game, MenuEvent.START_GAME, [AppState.NORMAL], "CmdOrCtrl+G"),
-        menuItem(t.csaOnlineGame, MenuEvent.START_CSA_GAME, [AppState.NORMAL]),
-        { type: "separator" },
-        menuItem(t.interrupt, MenuEvent.STOP_GAME, [AppState.GAME, AppState.PARALLEL_GAME]),
-        menuItem(t.resign, MenuEvent.RESIGN, [AppState.GAME, AppState.CSA_GAME]),
-        menuItem(t.winByDeclaration, MenuEvent.WIN, [AppState.GAME, AppState.CSA_GAME]),
-        { type: "separator" },
-        menuItem(t.logout, MenuEvent.LOGOUT, [AppState.CSA_GAME]),
-        { type: "separator" },
-        menuItem(t.calculateJishogiPoints, MenuEvent.CALCULATE_POINTS, null),
-        menuItem(t.displayGameResults, MenuEvent.DISPLAY_GAME_RESULTS, [AppState.GAME]),
-      ],
-    },
-    {
-      label: t.research,
-      submenu: [
-        menuItem(t.startEndResearch, MenuEvent.TOGGLE_RESEARCH, null, "CmdOrCtrl+R"),
-        { type: "separator" },
-        menuItem(
-          t.analyze,
-          MenuEvent.START_ANALYSIS,
-          [AppState.NORMAL],
-          // NOTE:
-          //   Mac では Cmd+A を SelectAll に割り当てる必要があるため、ここで CmdOrCtrl+A を使用することはできない。
-          //   テキスト入力欄にフォーカスしていない場合は、レンダラー側で Cmd+A をハンドリングして解析ダイアログを出すので
-          //   ここで Accelerator を割り当てなくても Cmd+A で解析ダイアログは表示される。
-          //   しかし、メニューバーに何らかの表示がないとユーザーがショートカットキーの割り当てに気づかないので、
-          //   Mac では Cmd+Y でも解析ダイアログを表示できるようにする。
-          isMac ? "CmdOrCtrl+Y" : "CmdOrCtrl+A",
-        ),
-        menuItem(t.stopAnalysis, MenuEvent.STOP_ANALYSIS, [AppState.ANALYSIS]),
-      ],
-    },
-    {
-      label: t.mateSearch,
-      submenu: [
-        menuItem(t.mateSearch, MenuEvent.START_MATE_SEARCH, [AppState.NORMAL], "CmdOrCtrl+M"),
-        menuItem(t.stopMateSearch, MenuEvent.STOP_MATE_SEARCH, [AppState.MATE_SEARCH]),
       ],
     },
     {
@@ -447,26 +365,6 @@ function createMenuTemplate(window: BrowserWindow) {
     {
       label: t.view,
       submenu: [
-        {
-          label: t.openLayoutManager,
-          click: () => {
-            createLayoutManagerWindow(window);
-          },
-          accelerator: "CmdOrCtrl+L",
-        },
-        {
-          label: t.openMonitorWindow,
-          click: () => {
-            createMonitorWindow(window);
-          },
-        },
-        {
-          type: "separator",
-        },
-        menuItem(t.elapsedTimeChart, MenuEvent.ELAPSED_TIME_CHART, [AppState.NORMAL]),
-        {
-          type: "separator",
-        },
         {
           label: t.boardLayout,
           submenu: [
@@ -547,10 +445,7 @@ function createMenuTemplate(window: BrowserWindow) {
     },
     {
       label: t.settings,
-      submenu: [
-        menuItem(t.appSettings, MenuEvent.APP_SETTINGS_DIALOG, null, "CmdOrCtrl+,"),
-        menuItem(t.manageEngines, MenuEvent.USI_ENGINES_DIALOG, [AppState.NORMAL], "CmdOrCtrl+."),
-      ],
+      submenu: [menuItem(t.appSettings, MenuEvent.APP_SETTINGS_DIALOG, null, "CmdOrCtrl+,")],
     },
     {
       label: t.folders,
@@ -562,33 +457,15 @@ function createMenuTemplate(window: BrowserWindow) {
           },
         },
         {
-          label: t.settings,
-          click: () => {
-            openSettingsDirectory().catch(sendError);
-          },
-        },
-        {
           label: t.log,
           click: () => {
             openPath(getRootLogDir()).catch(sendError);
           },
         },
         {
-          label: t.cache,
-          click: () => {
-            openCacheDirectory().catch(sendError);
-          },
-        },
-        {
           label: `${t.autoSaving} (Local)`,
           click: () => {
             openAutoSaveDirectory().catch(sendError);
-          },
-        },
-        {
-          label: `${t.autoSaving} (CSA)`,
-          click: () => {
-            openAutoSaveDirectoryForCSA().catch(sendError);
           },
         },
       ],
@@ -604,13 +481,6 @@ function createMenuTemplate(window: BrowserWindow) {
           type: "separator",
         },
         {
-          label: t.openMonitorWindow,
-          click: () => {
-            createMonitorWindow(window);
-          },
-          accelerator: "CmdOrCtrl+Shift+M",
-        },
-        {
           label: t.logFile,
           submenu: [
             {
@@ -623,12 +493,6 @@ function createMenuTemplate(window: BrowserWindow) {
               label: t.openUSILog,
               click: () => {
                 openPath(getLogFilePath(LogType.USI)).catch(sendError);
-              },
-            },
-            {
-              label: t.openCSALog,
-              click: () => {
-                openPath(getLogFilePath(LogType.CSA)).catch(sendError);
               },
             },
             {
@@ -649,13 +513,6 @@ function createMenuTemplate(window: BrowserWindow) {
               enabled: isWin || isMac,
             },
             {
-              label: t.tailCSALog + (isWin ? " (PowerShell)" : ""),
-              click: () => {
-                tailLogFile(LogType.CSA);
-              },
-              enabled: isWin || isMac,
-            },
-            {
               type: "separator",
             },
             {
@@ -670,76 +527,7 @@ function createMenuTemplate(window: BrowserWindow) {
                 clipboard.writeText(getTailCommand(LogType.USI));
               },
             },
-            {
-              label: t.copyCSALogTailCommand + (isWin ? " (PowerShell)" : ""),
-              click: () => {
-                clipboard.writeText(getTailCommand(LogType.CSA));
-              },
-            },
           ],
-        },
-        menuItem(`${t.launchUSIEngine}(${t.adminMode})`, MenuEvent.LAUNCH_USI_ENGINE, [
-          AppState.NORMAL,
-        ]),
-        menuItem(`${t.connectToCSAServer}(${t.adminMode})`, MenuEvent.CONNECT_TO_CSA_SERVER, [
-          AppState.NORMAL,
-        ]),
-        {
-          type: "separator",
-        },
-        {
-          label: t.reloadCustomPieceImage,
-          click: () => {
-            refreshCustomPieceImages(updateAppSettings).catch(sendError);
-          },
-        },
-        {
-          label: t.notificationTest,
-          submenu: [
-            {
-              label: "Message Only",
-              click: () => {
-                sendNotification(t.thisIsTestNotification);
-              },
-            },
-            {
-              label: "Message with URL",
-              click: () => {
-                sendNotification(t.thisIsTestNotification, websiteURL);
-              },
-            },
-          ],
-        },
-        {
-          type: "separator",
-        },
-        {
-          label: t.statisticsReport,
-          click: () => {
-            outputStatsHTML().catch(sendError);
-          },
-        },
-        {
-          label: "CPU Information",
-          click: async () => {
-            const cpu = await getCPUInfo();
-            sendMessage({
-              text: "CPU Information",
-              attachments: [
-                {
-                  type: "list",
-                  items: [
-                    { text: `Architecture: ${cpu.architecture}` },
-                    { text: `Available: ${cpu.availableCores} cores` },
-                    ...Object.entries(cpu.cores).map(([model, count]) => ({
-                      text: `${model} (${count} cores)`,
-                    })),
-                  ],
-                },
-              ],
-              withCopyButton: true,
-            });
-          },
         },
         {
           label: "GPU Information",
