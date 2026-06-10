@@ -4,7 +4,6 @@ import { BookFormat } from "@/common/book";
 import { MenuEvent } from "@/common/control/menu.js";
 import { AppState, ResearchState } from "@/common/control/state.js";
 import { RecordFileFormat } from "@/common/file/record";
-import { CSAGameResult, CSASpecialMove } from "@/common/game/csa.js";
 import { GameResult } from "@/common/game/result.js";
 import { LogLevel, LogType } from "@/common/log.js";
 
@@ -30,8 +29,6 @@ export interface Bridge {
   saveAnalysisSettings(settings: string): Promise<void>;
   loadGameSettings(): Promise<string>;
   saveGameSettings(settings: string): Promise<void>;
-  loadCSAGameSettingsHistory(): Promise<string>;
-  saveCSAGameSettingsHistory(settings: string): Promise<void>;
   loadMateSearchSettings(): Promise<string>;
   saveMateSearchSettings(settings: string): Promise<void>;
   loadUSIEngines(): Promise<string>;
@@ -97,23 +94,6 @@ export interface Bridge {
   onUSICheckmateTimeout(callback: (sessionID: number, usi: string) => void): void;
   onUSINoMate(callback: (sessionID: number, usi: string) => void): void;
   onUSIInfo(callback: (sessionID: number, usi: string, json: string) => void): void;
-
-  // CSA
-  csaLogin(json: string): Promise<number>;
-  csaLogout(sessionID: number): Promise<void>;
-  csaAgree(sessionID: number, gameID: string): Promise<void>;
-  csaMove(sessionID: number, move: string, score?: number, pv?: string): Promise<void>;
-  csaResign(sessionID: number): Promise<void>;
-  csaWin(sessionID: number): Promise<void>;
-  csaStop(sessionID: number): Promise<void>;
-  onCSAGameSummary(callback: (sessionID: number, gameSummary: string) => void): void;
-  onCSAReject(callback: (sessionID: number) => void): void;
-  onCSAStart(callback: (sessionID: number, playerStates: string) => void): void;
-  onCSAMove(callback: (sessionID: number, mvoe: string, playerStates: string) => void): void;
-  onCSAGameResult(
-    callback: (sessionID: number, specialMove: CSASpecialMove, gameResult: CSAGameResult) => void,
-  ): void;
-  onCSAClose(callback: (sessionID: number) => void): void;
 
   // Sessions
   collectSessionStates(): Promise<string>;

@@ -215,7 +215,6 @@ export type AppSettings = {
   returnCode: string;
   autoSaveDirectory: string; // Deprecated
   recordFileNameTemplate: string;
-  useCSAV3: boolean;
   useUTF8ForKifAndKi2: boolean;
   enableUSIFileStartpos: boolean;
   enableUSIFileResign: boolean; // Deprecated
@@ -257,7 +256,6 @@ export type AppSettings = {
   // Logging
   enableAppLog: boolean;
   enableUSILog: boolean;
-  enableCSALog: boolean;
   logLevel: LogLevel;
 
   // Position Image
@@ -291,8 +289,6 @@ export function isLogEnabled(type: LogType, appSettings: AppSettings): boolean {
       return appSettings.enableAppLog;
     case LogType.USI:
       return appSettings.enableUSILog;
-    case LogType.CSA:
-      return appSettings.enableCSALog;
   }
 }
 
@@ -378,7 +374,6 @@ export function defaultAppSettings(opt?: {
     returnCode: opt?.returnCode || "\r\n",
     autoSaveDirectory: opt?.autoSaveDirectory || "",
     recordFileNameTemplate: defaultRecordFileNameTemplate,
-    useCSAV3: false,
     useUTF8ForKifAndKi2: false,
     enableUSIFileStartpos: true,
     enableUSIFileResign: false,
@@ -410,7 +405,6 @@ export function defaultAppSettings(opt?: {
     branchListMode: BranchListMode.SIBLING,
     enableAppLog: false,
     enableUSILog: false,
-    enableCSALog: false,
     logLevel: LogLevel.INFO,
     positionImageStyle: PositionImageStyle.BOOK,
     positionImageSize: 500,

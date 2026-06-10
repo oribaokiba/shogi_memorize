@@ -1,4 +1,3 @@
-import { CSAProtocolVersion } from "@/common/settings/csa.js";
 import { Command } from "./command.js";
 
 export type MachineSpec = {
@@ -40,23 +39,7 @@ export type USISessionState = {
   closed: boolean;
 };
 
-export type CSASessionState = {
-  sessionID: number;
-  host: string;
-  port: number;
-  loginID: string;
-  protocolVersion: CSAProtocolVersion;
-  stateCode: string;
-  lastReceived?: Command;
-  lastSent?: Command;
-  createdMs: number;
-  loggedInMs?: number;
-  updatedMs: number;
-  closed: boolean;
-};
-
 export type SessionStates = {
   os: OSState;
   usiSessions: USISessionState[];
-  csaSessions: CSASessionState[];
 };

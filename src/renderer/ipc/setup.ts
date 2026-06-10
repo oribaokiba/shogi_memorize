@@ -15,14 +15,6 @@ import { bridge } from "@/renderer/ipc/api.js";
 import { MenuEvent } from "@/common/control/menu.js";
 import { USIInfoCommand } from "@/common/game/usi.js";
 import { AppState, ResearchState } from "@/common/control/state.js";
-import {
-  onCSAClose,
-  onCSAGameResult,
-  onCSAGameSummary,
-  onCSAMove,
-  onCSAReject,
-  onCSAStart,
-} from "@/renderer/game/csa.js";
 import { useAppSettings } from "@/renderer/store/settings.js";
 import { t } from "@/common/i18n/index.js";
 import { LogLevel } from "@/common/log.js";
@@ -118,9 +110,6 @@ export function setup(): void {
       case MenuEvent.COPY_RECORD_KI2:
         store.copyRecordKI2();
         break;
-      case MenuEvent.COPY_RECORD_CSA:
-        store.copyRecordCSA();
-        break;
       case MenuEvent.COPY_RECORD_USI_BEFORE:
         store.copyRecordUSI("before");
         break;
@@ -138,9 +127,6 @@ export function setup(): void {
         break;
       case MenuEvent.COPY_RECORD_KI2_FROM_CURRENT_POSITION:
         store.copyRecordKI2({ fromCurrentPosition: true });
-        break;
-      case MenuEvent.COPY_RECORD_CSA_FROM_CURRENT_POSITION:
-        store.copyRecordCSA({ fromCurrentPosition: true });
         break;
       case MenuEvent.COPY_RECORD_USI_FROM_CURRENT_POSITION:
         store.copyRecordUSI("after");
@@ -235,9 +221,6 @@ export function setup(): void {
       case MenuEvent.START_GAME:
         store.showGameDialog();
         break;
-      case MenuEvent.START_CSA_GAME:
-        store.showCSAGameDialog();
-        break;
       case MenuEvent.STOP_GAME:
         store.stopGame();
         break;
@@ -262,9 +245,6 @@ export function setup(): void {
             humanPlayer.win();
           },
         });
-        break;
-      case MenuEvent.LOGOUT:
-        store.cancelCSAGame();
         break;
       case MenuEvent.CALCULATE_POINTS:
         store.showJishogiPoints();
@@ -296,9 +276,6 @@ export function setup(): void {
         break;
       case MenuEvent.LAUNCH_USI_ENGINE:
         store.showLaunchUSIEngineDialog();
-        break;
-      case MenuEvent.CONNECT_TO_CSA_SERVER:
-        store.showConnectToCSAServerDialog();
         break;
       case MenuEvent.ELAPSED_TIME_CHART:
         store.showElapsedTimeChartDialog();
@@ -352,20 +329,6 @@ export function setup(): void {
     const info = JSON.parse(json) as USIInfoCommand;
     onUSIInfo(sessionID, usi, info);
   });
-
-  // CSA
-  bridge.onCSAGameSummary((sessionID: number, gameSummary: string): void => {
-    onCSAGameSummary(sessionID, JSON.parse(gameSummary));
-  });
-  bridge.onCSAReject(onCSAReject);
-  bridge.onCSAStart((sessionID: number, playerStates: string): void => {
-    onCSAStart(sessionID, JSON.parse(playerStates));
-  });
-  bridge.onCSAMove((sessionID: number, move: string, playerStates: string): void => {
-    onCSAMove(sessionID, move, JSON.parse(playerStates));
-  });
-  bridge.onCSAGameResult(onCSAGameResult);
-  bridge.onCSAClose(onCSAClose);
 
   // Layout
   bridge.onUpdateLayoutProfile((json) => {

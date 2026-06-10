@@ -16,7 +16,6 @@ const datetime = getDateTimeString().replaceAll(" ", "_").replaceAll("/", "").re
 
 const appLogPath = path.join(rootDir, `app-${datetime}.log`);
 const usiLogPath = path.join(rootDir, `usi-${datetime}.log`);
-const csaLogPath = path.join(rootDir, `csa-${datetime}.log`);
 
 const config: log4js.Configuration = {
   appenders: {
@@ -34,8 +33,6 @@ export function getFilePath(type: LogType): string {
       return appLogPath;
     case LogType.USI:
       return usiLogPath;
-    case LogType.CSA:
-      return csaLogPath;
   }
 }
 
@@ -44,13 +41,11 @@ const defaultAppender = isTest() ? "recording" : "stdout";
 const appenders = {
   [LogType.APP]: [defaultAppender] as string[],
   [LogType.USI]: [defaultAppender] as string[],
-  [LogType.CSA]: [defaultAppender] as string[],
 };
 
 const levels = {
   [LogType.APP]: LogLevel.INFO,
   [LogType.USI]: LogLevel.INFO,
-  [LogType.CSA]: LogLevel.INFO,
 };
 
 export type LogDestination = "file" | "stdout" | "recording";
@@ -95,10 +90,6 @@ export function getAppLogger(): Logger {
 
 export function getUSILogger(): Logger {
   return getLogger(LogType.USI);
-}
-
-export function getCSALogger(): Logger {
-  return getLogger(LogType.CSA);
 }
 
 export function shutdownLoggers(): void {

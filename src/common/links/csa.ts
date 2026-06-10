@@ -1,1 +1,1 @@
-export const csaTopURL = "http://www2.computer-shogi.org";
+// REMOVED: CSA online game feature

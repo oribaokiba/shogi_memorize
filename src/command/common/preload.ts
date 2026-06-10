@@ -1,17 +1,6 @@
 /* eslint-disable no-console */
 import { LogDestination, getAppLogger, setLogDestinations } from "@/background/log.js";
 import {
-  setSessionRemoveDelay as setCSASessionRemoveDelay,
-  login as csaLogin,
-  logout as csaLogout,
-  agree as csaAgree,
-  doMove as csaMove,
-  resign as csaResign,
-  win as csaWin,
-  stop as csaStop,
-  setHandlers as setCSAHandlers,
-} from "@/background/csa/index.js";
-import {
   setSessionRemoveDelay as setUSISessionRemoveDelay,
   ready as usiReady,
   setOption as usiSetOption,
@@ -89,12 +78,6 @@ const bridge: Bridge = {
     throw new Error("This feature is not available on command line tool");
   },
   async saveGameSettings(): Promise<void> {
-    throw new Error("This feature is not available on command line tool");
-  },
-  async loadCSAGameSettingsHistory(): Promise<string> {
-    throw new Error("This feature is not available on command line tool");
-  },
-  async saveCSAGameSettingsHistory(): Promise<void> {
     throw new Error("This feature is not available on command line tool");
   },
   async loadMateSearchSettings(): Promise<string> {
@@ -277,47 +260,6 @@ const bridge: Bridge = {
     // Do Nothing
   },
 
-  // CSA
-  async csaLogin(json: string): Promise<number> {
-    return csaLogin(JSON.parse(json));
-  },
-  async csaLogout(sessionID: number): Promise<void> {
-    csaLogout(sessionID);
-  },
-  async csaAgree(sessionID: number, gameID: string): Promise<void> {
-    csaAgree(sessionID, gameID);
-  },
-  async csaMove(sessionID: number, move: string, score?: number, pv?: string): Promise<void> {
-    csaMove(sessionID, move, score, pv);
-  },
-  async csaResign(sessionID: number): Promise<void> {
-    csaResign(sessionID);
-  },
-  async csaWin(sessionID: number): Promise<void> {
-    csaWin(sessionID);
-  },
-  async csaStop(sessionID: number): Promise<void> {
-    csaStop(sessionID);
-  },
-  onCSAGameSummary(): void {
-    // Do Nothing
-  },
-  onCSAReject(): void {
-    // Do Nothing
-  },
-  onCSAStart(): void {
-    // Do Nothing
-  },
-  onCSAMove(): void {
-    // Do Nothing
-  },
-  onCSAGameResult(): void {
-    // Do Nothing
-  },
-  onCSAClose(): void {
-    // Do Nothing
-  },
-
   // Sessions
   async collectSessionStates(): Promise<string> {
     throw new Error("This feature is not available on command line tool");
@@ -422,7 +364,6 @@ global.window = {
 type Config = {
   appLogFile: boolean;
   usiLogFile: boolean;
-  csaLogFile: boolean;
   stdoutLog: boolean;
   logLevel: LogLevel;
   language: Language;
@@ -434,13 +375,10 @@ export function preload(config: Config) {
   const fileAndStdout: LogDestination[] = config.stdoutLog ? ["file", "stdout"] : ["file"];
   const appDestinations: LogDestination[] = config.appLogFile ? fileAndStdout : ["stdout"];
   const usiDestinations: LogDestination[] = config.usiLogFile ? fileAndStdout : ["stdout"];
-  const csaDestinations: LogDestination[] = config.csaLogFile ? fileAndStdout : ["stdout"];
   setLogDestinations(LogType.APP, appDestinations, config.logLevel);
   setLogDestinations(LogType.USI, usiDestinations, config.logLevel);
-  setLogDestinations(LogType.CSA, csaDestinations, config.logLevel);
 
   setUSISessionRemoveDelay(0);
-  setCSASessionRemoveDelay(0);
 
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const usi = require("@/renderer/players/usi.js");
@@ -449,16 +387,6 @@ export function preload(config: Config) {
     onEngineProcessStats: () => {},
     sendPromptCommand: () => {},
   });
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const csa = require("@/renderer/game/csa.js");
-  setCSAHandlers({
-    ...csa,
-    sendPromptCommand: () => {},
-    sendError: (error: Error) => {
-      getAppLogger().error(error);
-    },
-  });
-
   process.on("uncaughtException", (e, origin) => {
     getAppLogger().error(new Error(`${origin} ${e}`));
   });

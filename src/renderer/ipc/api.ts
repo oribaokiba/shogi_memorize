@@ -12,7 +12,6 @@ import { AppState, ResearchState } from "@/common/control/state.js";
 import { GameResult } from "@/common/game/result.js";
 import { AnalysisSettings } from "@/common/settings/analysis.js";
 import { LogLevel, LogType } from "@/common/log.js";
-import { CSAGameSettingsHistory, CSAServerSettings } from "@/common/settings/csa.js";
 import { Rect } from "@/common/assets/geometry.js";
 import { MateSearchSettings } from "@/common/settings/mate.js";
 import { BatchConversionSettings } from "@/common/settings/conversion.js";
@@ -51,8 +50,6 @@ export interface API {
   saveAnalysisSettings(settings: AnalysisSettings): Promise<void>;
   loadGameSettings(): Promise<GameSettings>;
   saveGameSettings(settings: GameSettings): Promise<void>;
-  loadCSAGameSettingsHistory(): Promise<CSAGameSettingsHistory>;
-  saveCSAGameSettingsHistory(settings: CSAGameSettingsHistory): Promise<void>;
   loadMateSearchSettings(): Promise<MateSearchSettings>;
   saveMateSearchSettings(settings: MateSearchSettings): Promise<void>;
   loadUSIEngines(): Promise<USIEngines>;
@@ -108,15 +105,6 @@ export interface API {
   usiStop(sessionID: number): Promise<void>;
   usiGameover(sessionID: number, result: GameResult): Promise<void>;
   usiQuit(sessionID: number): Promise<void>;
-
-  // CSA
-  csaLogin(settings: CSAServerSettings): Promise<number>;
-  csaLogout(sessionID: number): Promise<void>;
-  csaAgree(sessionID: number, gameID: string): Promise<void>;
-  csaMove(sessionID: number, move: string, score?: number, pv?: string): Promise<void>;
-  csaResign(sessionID: number): Promise<void>;
-  csaWin(sessionID: number): Promise<void>;
-  csaStop(sessionID: number): Promise<void>;
 
   // Sessions
   collectSessionStates(): Promise<SessionStates>;
@@ -208,12 +196,6 @@ const api: API = {
   saveGameSettings(settings: GameSettings): Promise<void> {
     return bridge.saveGameSettings(JSON.stringify(settings));
   },
-  async loadCSAGameSettingsHistory(): Promise<CSAGameSettingsHistory> {
-    return JSON.parse(await bridge.loadCSAGameSettingsHistory());
-  },
-  saveCSAGameSettingsHistory(settings: CSAGameSettingsHistory): Promise<void> {
-    return bridge.saveCSAGameSettingsHistory(JSON.stringify(settings));
-  },
   async loadMateSearchSettings(): Promise<MateSearchSettings> {
     return JSON.parse(await bridge.loadMateSearchSettings());
   },
@@ -284,11 +266,6 @@ const api: API = {
   },
   usiPonderHit(sessionID, timeStates) {
     return bridge.usiPonderHit(sessionID, JSON.stringify(timeStates));
-  },
-
-  // CSA
-  csaLogin(settings: CSAServerSettings): Promise<number> {
-    return bridge.csaLogin(JSON.stringify(settings));
   },
 
   // Sessions

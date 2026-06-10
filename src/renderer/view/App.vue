@@ -15,7 +15,6 @@
     <ErrorMessage v-if="errorStore.hasError" />
     <ConfirmDialog v-if="confirmation.message" />
     <GameDialog v-if="store.appState === AppState.GAME_DIALOG" />
-    <CSAGameDialog v-if="store.appState === AppState.CSA_GAME_DIALOG" />
     <AnalysisDialog v-if="store.appState === AppState.ANALYSIS_DIALOG" />
     <MateSearchDialog v-if="store.appState === AppState.MATE_SEARCH_DIALOG" />
     <USIEngineManagementDialog v-if="store.appState === AppState.USI_ENGINES_DIALOG" />
@@ -25,7 +24,6 @@
     <AppSettingsDialog v-if="store.isAppSettingsDialogVisible" />
     <PasteDialog v-if="store.appState === AppState.PASTE_DIALOG" />
     <LaunchUSIEngineDialog v-if="store.appState === AppState.LAUNCH_USI_ENGINE_DIALOG" />
-    <ConnectToCSAServerDialog v-if="store.appState === AppState.CONNECT_TO_CSA_SERVER_DIALOG" />
     <LoadRemoteFileDialog v-if="store.appState === AppState.LOAD_REMOTE_FILE_DIALOG" />
     <ShareDialog v-if="store.appState === AppState.SHARE_DIALOG" />
     <AddBookMovesDialog v-if="store.appState === AppState.ADD_BOOK_MOVES_DIALOG" />
@@ -37,14 +35,6 @@
       @close="store.destroyModalDialog()"
     />
     <ElapsedTimeChartDialog v-if="store.appState === AppState.ELAPSED_TIME_CHART_DIALOG" />
-    <CSAGameReadyDialog
-      v-if="
-        store.csaGameState === CSAGameState.PLAYER_SETUP ||
-        store.csaGameState === CSAGameState.WAITING_LOGIN ||
-        store.csaGameState === CSAGameState.READY ||
-        store.csaGameState === CSAGameState.LOGIN_RETRY_INTERVAL
-      "
-    />
     <PVPreviewDialog
       v-if="store.pvPreview"
       :position="store.pvPreview.position"
@@ -79,7 +69,6 @@
 import { computed, onMounted, ref } from "vue";
 import StandardLayout from "@/renderer/view/main/StandardLayout.vue";
 import GameDialog from "@/renderer/view/dialog/GameDialog.vue";
-import CSAGameDialog from "@/renderer/view/dialog/CSAGameDialog.vue";
 import ResearchDialog from "@/renderer/view/dialog/ResearchDialog.vue";
 import USIEngineManagementDialog from "@/renderer/view/dialog/USIEngineManagementDialog.vue";
 import PositionImageExportDialog from "@/renderer/view/dialog/PositionImageExportDialog.vue";
@@ -92,8 +81,6 @@ import ErrorMessage from "@/renderer/view/dialog/ErrorMessage.vue";
 import { useStore } from "@/renderer/store";
 import { AppState, ResearchState } from "@/common/control/state.js";
 import AnalysisDialog from "@/renderer/view/dialog/AnalysisDialog.vue";
-import CSAGameReadyDialog from "@/renderer/view/dialog/CSAGameReadyDialog.vue";
-import { CSAGameState } from "@/renderer/game/csa";
 import { useAppSettings } from "@/renderer/store/settings";
 import { BackgroundImageType } from "@/common/settings/app";
 import MateSearchDialog from "./dialog/MateSearchDialog.vue";
@@ -101,7 +88,6 @@ import PVPreviewDialog from "./dialog/PVPreviewDialog.vue";
 import RecordFileHistoryDialog from "./dialog/RecordFileHistoryDialog.vue";
 import BatchConversionDialog from "./dialog/BatchConversionDialog.vue";
 import LaunchUSIEngineDialog from "./dialog/LaunchUSIEngineDialog.vue";
-import ConnectToCSAServerDialog from "./dialog/ConnectToCSAServerDialog.vue";
 import PieceSetChangeDialog from "./dialog/PieceSetChangeDialog.vue";
 import LoadRemoteFileDialog from "./dialog/LoadRemoteFileDialog.vue";
 import ShareDialog from "./dialog/ShareDialog.vue";

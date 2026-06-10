@@ -1,12 +1,4 @@
-import {
-  BrowserWindow,
-  dialog,
-  FileFilter,
-  ipcMain,
-  powerSaveBlocker,
-  shell,
-  WebContents,
-} from "electron";
+import { BrowserWindow, dialog, FileFilter, ipcMain, shell, WebContents } from "electron";
 import { Background, Renderer } from "@/common/ipc/channel.js";
 import path from "node:path";
 import { promises as fs } from "node:fs";
@@ -16,7 +8,6 @@ import {
   loadAppSettings,
   loadBatchConversionSettings,
   loadBookImportSettings,
-  loadCSAGameSettingsHistory,
   loadGameSettings,
   loadLayoutProfileList,
   loadMateSearchSettings,
@@ -26,7 +17,6 @@ import {
   saveAppSettings,
   saveBatchConversionSettings,
   saveBookImportSettings,
-  saveCSAGameSettingsHistory,
   saveGameSettings,
   saveLayoutProfileList,
   saveMateSearchSettings,
@@ -59,26 +49,6 @@ import {
 import { GameResult } from "@/common/game/result.js";
 import { LogLevel, LogType } from "@/common/log.js";
 import { getAppLogger, getFilePath as getLogFilePath } from "@/background/log.js";
-import {
-  login as csaLogin,
-  logout as csaLogout,
-  agree as csaAgree,
-  doMove as csaDoMove,
-  resign as csaResign,
-  win as csaWin,
-  stop as csaStop,
-  collectSessionStates as collectCSASessionStates,
-  getCommandHistory as getCSACommandHistory,
-  invokeCommand as invokeCSACommand,
-  setHandlers,
-} from "@/background/csa/index.js";
-import {
-  CSAGameResult,
-  CSAGameSummary,
-  CSAPlayerStates,
-  CSASpecialMove,
-} from "@/common/game/csa.js";
-import { CSAServerSettings } from "@/common/settings/csa.js";
 import { isEncryptionAvailable } from "@/background/helpers/encrypt.js";
 import { validateIPCSender } from "@/background/security/ipc.js";
 import { t } from "@/common/i18n/index.js";
@@ -518,21 +488,6 @@ ipcMain.handle(Background.SAVE_GAME_SETTINGS, async (event, json: string): Promi
   await saveGameSettings(JSON.parse(json));
 });
 
-ipcMain.handle(Background.LOAD_CSA_GAME_SETTINGS_HISTORY, async (event): Promise<string> => {
-  validateIPCSender(event.senderFrame);
-  getAppLogger().debug("load CSA game settings history");
-  return JSON.stringify(await loadCSAGameSettingsHistory());
-});
-
-ipcMain.handle(
-  Background.SAVE_CSA_GAME_SETTINGS_HISTORY,
-  async (event, json: string): Promise<void> => {
-    validateIPCSender(event.senderFrame);
-    getAppLogger().debug("save CSA game settings history");
-    await saveCSAGameSettingsHistory(JSON.parse(json));
-  },
-);
-
 ipcMain.handle(Background.LOAD_MATE_SEARCH_SETTINGS, async (event): Promise<string> => {
   validateIPCSender(event.senderFrame);
   getAppLogger().debug("load mate search settings");
@@ -879,53 +834,11 @@ ipcMain.handle(Background.USI_QUIT, (event, sessionID: number) => {
   usiQuit(sessionID);
 });
 
-ipcMain.handle(Background.CSA_LOGIN, (event, json: string): number => {
-  validateIPCSender(event.senderFrame);
-  const settings: CSAServerSettings = JSON.parse(json);
-  const sessionID = csaLogin(settings);
-  preventAppSuspension(getPowerSaveBlockKeyForCSA(sessionID));
-  return sessionID;
-});
-
-ipcMain.handle(Background.CSA_LOGOUT, (event, sessionID: number): void => {
-  validateIPCSender(event.senderFrame);
-  csaLogout(sessionID);
-});
-
-ipcMain.handle(Background.CSA_AGREE, (event, sessionID: number, gameID: string): void => {
-  validateIPCSender(event.senderFrame);
-  csaAgree(sessionID, gameID);
-});
-
-ipcMain.handle(
-  Background.CSA_MOVE,
-  (event, sessionID: number, move: string, score?: number, pv?: string): void => {
-    validateIPCSender(event.senderFrame);
-    csaDoMove(sessionID, move, score, pv);
-  },
-);
-
-ipcMain.handle(Background.CSA_RESIGN, (event, sessionID: number): void => {
-  validateIPCSender(event.senderFrame);
-  csaResign(sessionID);
-});
-
-ipcMain.handle(Background.CSA_WIN, (event, sessionID: number): void => {
-  validateIPCSender(event.senderFrame);
-  csaWin(sessionID);
-});
-
-ipcMain.handle(Background.CSA_STOP, (event, sessionID: number): void => {
-  validateIPCSender(event.senderFrame);
-  csaStop(sessionID);
-});
-
 ipcMain.handle(Background.COLLECT_SESSION_STATES, async (event): Promise<string> => {
   validateIPCSender(event.senderFrame);
   const sessionStates: SessionStates = {
     os: collectOSState(),
     usiSessions: collectUSISessionStates(),
-    csaSessions: collectCSASessionStates(),
   };
   return JSON.stringify(sessionStates);
 });
@@ -977,8 +890,8 @@ ipcMain.handle(
     switch (target) {
       case PromptTarget.USI:
         return JSON.stringify(getUSICommandHistory(sessionID));
-      case PromptTarget.CSA:
-        return JSON.stringify(getCSACommandHistory(sessionID));
+      default:
+        return "[]";
     }
   },
 );
@@ -997,9 +910,6 @@ ipcMain.on(
     switch (target) {
       case PromptTarget.USI:
         invokeUSICommand(sessionID, type, command);
-        break;
-      case PromptTarget.CSA:
-        invokeCSACommand(sessionID, type, command);
         break;
     }
   },
@@ -1135,48 +1045,3 @@ setUSIHandlers({
   },
   sendPromptCommand: sendPromptCommand.bind(this, PromptTarget.USI),
 });
-
-setHandlers({
-  onCSAGameSummary(sessionID: number, gameSummary: CSAGameSummary): void {
-    mainWindow.webContents.send(Renderer.CSA_GAME_SUMMARY, sessionID, JSON.stringify(gameSummary));
-  },
-  onCSAReject(sessionID: number): void {
-    mainWindow.webContents.send(Renderer.CSA_REJECT, sessionID);
-  },
-  onCSAStart(sessionID: number, playerStates: CSAPlayerStates): void {
-    mainWindow.webContents.send(Renderer.CSA_START, sessionID, JSON.stringify(playerStates));
-  },
-  onCSAMove(sessionID: number, move: string, playerStates: CSAPlayerStates): void {
-    mainWindow.webContents.send(Renderer.CSA_MOVE, sessionID, move, JSON.stringify(playerStates));
-  },
-  onCSAGameResult(sessionID: number, specialMove: CSASpecialMove, gameResult: CSAGameResult): void {
-    mainWindow.webContents.send(Renderer.CSA_GAME_RESULT, sessionID, specialMove, gameResult);
-  },
-  onCSAClose(sessionID: number): void {
-    mainWindow.webContents.send(Renderer.CSA_CLOSE, sessionID);
-    allowAppSuspension(getPowerSaveBlockKeyForCSA(sessionID));
-  },
-  sendPromptCommand: sendPromptCommand.bind(this, PromptTarget.CSA),
-  sendError: sendError,
-});
-
-function getPowerSaveBlockKeyForCSA(sessionID: number): string {
-  return `csa:${sessionID}`;
-}
-
-const powerSaveBlockMap = new Map<string, number>();
-
-function preventAppSuspension(key: string) {
-  const id = powerSaveBlocker.start("prevent-app-suspension");
-  powerSaveBlockMap.set(key, id);
-  getAppLogger().info("prevent app suspension: blocker=%d", id);
-}
-
-function allowAppSuspension(key: string) {
-  const id = powerSaveBlockMap.get(key);
-  if (id !== undefined) {
-    powerSaveBlocker.stop(id);
-    powerSaveBlockMap.delete(key);
-    getAppLogger().info("allow app suspension: blocker=%d", id);
-  }
-}

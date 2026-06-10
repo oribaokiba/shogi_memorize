@@ -23,14 +23,6 @@ import {
   normalizeAnalysisSettings,
 } from "@/common/settings/analysis.js";
 import { getAppLogger } from "@/background/log.js";
-import {
-  CSAGameSettingsHistory as CSAGameSettingsHistory,
-  decryptCSAGameSettingsHistory,
-  defaultCSAGameSettingsHistory,
-  encryptCSAGameSettingsHistory,
-  normalizeSecureCSAGameSettingsHistory,
-} from "@/common/settings/csa.js";
-import { DecryptString, EncryptString, isEncryptionAvailable } from "./helpers/encrypt.js";
 import { getPortableExeDir, isPortable } from "./proc/env.js";
 import {
   MateSearchSettings as MateSearchSettings,
@@ -60,11 +52,6 @@ export function openSettingsDirectory(): Promise<void> {
 export async function openAutoSaveDirectory(): Promise<void> {
   const gameSettings = await loadGameSettings();
   await openPath(gameSettings.autoSaveDirectory || docDir);
-}
-
-export async function openAutoSaveDirectoryForCSA(): Promise<void> {
-  const csaGameSettings = await loadCSAGameSettingsHistory();
-  await openPath(csaGameSettings.autoSaveDirectory || docDir);
 }
 
 const windowSettingsPath = path.join(userDir, "window.json");
@@ -186,35 +173,6 @@ export async function loadGameSettings(): Promise<GameSettings> {
   return normalizeGameSettings(
     JSON.parse(await fs.promises.readFile(gameSettingsPath, "utf8")),
     opts,
-  );
-}
-
-const csaGameSettingsHistoryPath = path.join(rootDir, "csa_game_setting_history.json");
-
-export async function saveCSAGameSettingsHistory(settings: CSAGameSettingsHistory): Promise<void> {
-  const encrypted = encryptCSAGameSettingsHistory(
-    settings,
-    isEncryptionAvailable() ? EncryptString : undefined,
-  );
-  await writeFileAtomic(
-    csaGameSettingsHistoryPath,
-    JSON.stringify(encrypted, undefined, 2),
-    "utf8",
-  );
-}
-
-export async function loadCSAGameSettingsHistory(): Promise<CSAGameSettingsHistory> {
-  const opts = {
-    // v1.26.0 で autoSaveDirectory がアプリ設定から移動したので値を引き継ぐ。
-    autoSaveDirectory: isPortable() ? undefined : loadAppSettingsOnce().autoSaveDirectory || docDir,
-  };
-  if (!(await exists(csaGameSettingsHistoryPath))) {
-    return defaultCSAGameSettingsHistory(opts);
-  }
-  const encrypted = JSON.parse(await fs.promises.readFile(csaGameSettingsHistoryPath, "utf8"));
-  return decryptCSAGameSettingsHistory(
-    normalizeSecureCSAGameSettingsHistory(encrypted, opts),
-    isEncryptionAvailable() ? DecryptString : undefined,
   );
 }
 

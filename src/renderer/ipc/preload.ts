@@ -5,7 +5,6 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { Background, Renderer } from "@/common/ipc/channel";
 import { Bridge } from "@/renderer/ipc/bridge";
 import { LogType, LogLevel } from "@/common/log";
-import { CSAGameResult, CSASpecialMove } from "@/common/game/csa";
 import { PromptTarget } from "@/common/advanced/prompt";
 import { CommandType } from "@/common/advanced/command";
 import { BookFormat } from "@/common/book";
@@ -76,12 +75,6 @@ const api: Bridge = {
   },
   async saveGameSettings(json: string): Promise<void> {
     await ipcRenderer.invoke(Background.SAVE_GAME_SETTINGS, json);
-  },
-  async loadCSAGameSettingsHistory(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_CSA_GAME_SETTINGS_HISTORY);
-  },
-  async saveCSAGameSettingsHistory(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_CSA_GAME_SETTINGS_HISTORY, json);
   },
   async loadMateSearchSettings(): Promise<string> {
     return await ipcRenderer.invoke(Background.LOAD_MATE_SEARCH_SETTINGS);
@@ -281,61 +274,6 @@ const api: Bridge = {
   onUSIInfo(callback: (sessionID: number, usi: string, json: string) => void): void {
     ipcRenderer.on(Renderer.USI_INFO, (_, sessionID, usi, json) => {
       callback(sessionID, usi, json);
-    });
-  },
-
-  // CSA
-  async csaLogin(json: string): Promise<number> {
-    return await ipcRenderer.invoke(Background.CSA_LOGIN, json);
-  },
-  async csaLogout(sessionID: number): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_LOGOUT, sessionID);
-  },
-  async csaAgree(sessionID: number, gameID: string): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_AGREE, sessionID, gameID);
-  },
-  async csaMove(sessionID: number, move: string, score?: number, pv?: string): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_MOVE, sessionID, move, score, pv);
-  },
-  async csaResign(sessionID: number): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_RESIGN, sessionID);
-  },
-  async csaWin(sessionID: number): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_WIN, sessionID);
-  },
-  async csaStop(sessionID: number): Promise<void> {
-    return await ipcRenderer.invoke(Background.CSA_STOP, sessionID);
-  },
-  onCSAGameSummary(callback: (sessionID: number, gameSummary: string) => void): void {
-    ipcRenderer.on(Renderer.CSA_GAME_SUMMARY, (_, sessionID, gameSummary) => {
-      callback(sessionID, gameSummary);
-    });
-  },
-  onCSAReject(callback: (sessionID: number) => void): void {
-    ipcRenderer.on(Renderer.CSA_REJECT, (_, sessionID) => {
-      callback(sessionID);
-    });
-  },
-  onCSAStart(callback: (sessionID: number, playerStates: string) => void): void {
-    ipcRenderer.on(Renderer.CSA_START, (_, sessionID, playerStates) => {
-      callback(sessionID, playerStates);
-    });
-  },
-  onCSAMove(callback: (sessionID: number, mvoe: string, playerStates: string) => void): void {
-    ipcRenderer.on(Renderer.CSA_MOVE, (_, sessionID, move, playerStates) => {
-      callback(sessionID, move, playerStates);
-    });
-  },
-  onCSAGameResult(
-    callback: (sessionID: number, specialMove: CSASpecialMove, gameResult: CSAGameResult) => void,
-  ): void {
-    ipcRenderer.on(Renderer.CSA_GAME_RESULT, (_, sessionID, specialMove, gameResult) => {
-      callback(sessionID, specialMove, gameResult);
-    });
-  },
-  onCSAClose(callback: (sessionID: number) => void): void {
-    ipcRenderer.on(Renderer.CSA_CLOSE, (_, sessionID) => {
-      callback(sessionID);
     });
   },
 

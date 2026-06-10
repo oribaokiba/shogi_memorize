@@ -39,7 +39,6 @@ import {
 } from "@/renderer/record/manager.js";
 import { GameManager } from "@/renderer/game/game.js";
 import { calculateGameStatistics, GameResults, SPRTSummary } from "@/renderer/game/result.js";
-import { CSAGameManager, CSAGameState } from "@/renderer/game/csa.js";
 import { Clock } from "@/renderer/game/clock.js";
 import { generateRecordFileName, join } from "@/renderer/helpers/path.js";
 import { ResearchSettings } from "@/common/settings/research.js";
@@ -50,7 +49,6 @@ import { AnalysisManager } from "./analysis.js";
 import { AnalysisSettings } from "@/common/settings/analysis.js";
 import { MateSearchSettings } from "@/common/settings/mate.js";
 import { LogLevel } from "@/common/log.js";
-import { CSAGameSettings, appendCSAGameSettingsHistory } from "@/common/settings/csa.js";
 import { defaultPlayerBuilder } from "@/renderer/players/builder.js";
 import { USIInfoCommand } from "@/common/game/usi.js";
 import { ResearchManager } from "./research.js";
@@ -174,7 +172,6 @@ class Store {
   private parallelGameManager = new ParallelGameManager();
   private _parallelGameProgress?: ParallelGameProgress;
   private _gameSettings: GameSettings = defaultGameSettings();
-  private csaGameManager = new CSAGameManager(this.recordManager, this.blackClock, this.whiteClock);
   private analysisManager = new AnalysisManager(this.recordManager);
   private mateSearchManager = new MateSearchManager();
   private _researchState = ResearchState.IDLE;
@@ -229,17 +226,6 @@ class Store {
       .on("progress", this.onParallelGameProgress.bind(refs))
       .on("saveRecord", this.onSaveRecord.bind(refs))
       .on("closed", this.onParallelGameClosed.bind(refs))
-      .on("error", (e) => {
-        useErrorStore().add(e);
-      });
-    this.csaGameManager
-      .on("saveRecord", this.onSaveRecord.bind(refs))
-      .on("closed", this.onCSAGameClosed.bind(refs))
-      .on("flipBoard", this.onFlipBoard.bind(refs))
-      .on("pieceBeat", () => playPieceBeat(useAppSettings().pieceVolume))
-      .on("beepShort", this.onBeepShort.bind(refs))
-      .on("beepUnlimited", this.onBeepUnlimited.bind(refs))
-      .on("stopBeep", stopBeep)
       .on("error", (e) => {
         useErrorStore().add(e);
       });
@@ -712,66 +698,6 @@ class Store {
     return this.gameManager.results;
   }
 
-  get csaGameState(): CSAGameState {
-    return this.csaGameManager.state;
-  }
-
-  get csaServerSessionID(): number {
-    return this.csaGameManager.sessionID;
-  }
-
-  get csaGameSettings(): CSAGameSettings {
-    return this.csaGameManager.settings;
-  }
-
-  get usiSessionIDs(): number[] {
-    if (this.appState == AppState.CSA_GAME) {
-      return [this.csaGameManager.usiSessionID].filter((id) => id);
-    }
-    return [];
-  }
-
-  loginCSAGame(settings: CSAGameSettings, opt: { saveHistory: boolean }): void {
-    if (this.appState !== AppState.CSA_GAME_DIALOG || useBusyState().isBusy) {
-      return;
-    }
-    useBusyState().retain();
-    Promise.resolve()
-      .then(async () => {
-        if (opt.saveHistory) {
-          const latestHistory = await api.loadCSAGameSettingsHistory();
-          const history = appendCSAGameSettingsHistory(latestHistory, settings);
-          await api.saveCSAGameSettingsHistory(history);
-        }
-      })
-      .then(() => {
-        const appSettings = useAppSettings();
-        const builder = defaultPlayerBuilder({
-          timeoutSeconds: appSettings.engineTimeoutSeconds,
-        });
-        return this.csaGameManager.login(settings, builder);
-      })
-      .then(() => (this._appState = AppState.CSA_GAME))
-      .catch((e) => {
-        useErrorStore().add(e);
-      })
-      .finally(() => {
-        useBusyState().release();
-      });
-  }
-
-  cancelCSAGame(): void {
-    if (this.appState !== AppState.CSA_GAME) {
-      return;
-    }
-    if (this.csaGameManager.state === CSAGameState.GAME) {
-      useErrorStore().add("対局が始まっているため通信対局をキャンセルできませんでした。"); // TODO: i18n
-      return;
-    }
-    this.csaGameManager.logout();
-    this._appState = AppState.NORMAL;
-  }
-
   stopGame(): void {
     switch (this.appState) {
       case AppState.GAME:
@@ -789,13 +715,6 @@ class Store {
         this.showConfirmation({
           message: t.areYouSureWantToQuitGames,
           onOk: () => this.parallelGameManager.stop(),
-        });
-        break;
-      case AppState.CSA_GAME:
-        // 確認ダイアログを表示する。
-        this.showConfirmation({
-          message: t.areYouSureWantToRequestQuit,
-          onOk: () => this.csaGameManager.stop(),
         });
         break;
     }
@@ -849,13 +768,6 @@ class Store {
       attachments: getMessageAttachmentsByGameResults(results, sprtSummary),
       withCopyButton: true,
     });
-    this._appState = AppState.NORMAL;
-  }
-
-  private onCSAGameClosed(): void {
-    if (this.appState !== AppState.CSA_GAME) {
-      return;
-    }
     this._appState = AppState.NORMAL;
   }
 
@@ -1605,8 +1517,6 @@ class Store {
       }
       case AppState.GAME:
         return this.gameManager.waitingForHumanPlayerMove;
-      case AppState.CSA_GAME:
-        return this.csaGameManager.waitingForHumanPlayerMove;
     }
     return false;
   }
@@ -1689,7 +1599,7 @@ class Store {
     this.recordManager.reset();
 
     const actualPlayerColor = playerColor !== undefined ? playerColor : problem.playerColor;
-    
+
     if (problem.moves.length > 0 && problem.moves[0].color !== actualPlayerColor) {
       this.recordManager.appendMove({ move: problem.moves[0] });
       this._memorizeStep = 1;
@@ -1722,7 +1632,8 @@ class Store {
         return;
       }
 
-      const actualPlayerColor = this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
+      const actualPlayerColor =
+        this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
       const nextExpectedMove = problem.moves[this._memorizeStep];
       if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
         this._isMemorizeProcessing = true;
@@ -1778,7 +1689,8 @@ class Store {
       return;
     }
 
-    const actualPlayerColor = this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
+    const actualPlayerColor =
+      this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
     const nextExpectedMove = problem.moves[this._memorizeStep];
     if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
       this._isMemorizeProcessing = true;
