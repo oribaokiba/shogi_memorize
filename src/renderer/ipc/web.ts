@@ -1,42 +1,25 @@
 /* eslint-disable no-console */
-import { defaultAnalysisSettings } from "@/common/settings/analysis.js";
 import { defaultAppSettings } from "@/common/settings/app.js";
-import { defaultGameSettings } from "@/common/settings/game.js";
-import { defaultResearchSettings } from "@/common/settings/research.js";
-import { USIEngines } from "@/common/settings/usi.js";
 import { LogLevel } from "@/common/log.js";
 import { Bridge } from "@/renderer/ipc/bridge.js";
-import { t } from "@/common/i18n/index.js";
-import { defaultMateSearchSettings } from "@/common/settings/mate.js";
-import { defaultBatchConversionSettings } from "@/common/settings/conversion.js";
 import { getEmptyHistory } from "@/common/file/history.js";
-import { VersionStatus } from "@/common/version.js";
-import { blankOSState, SessionStates, MachineSpec } from "@/common/advanced/monitor.js";
 import { emptyLayoutProfileList } from "@/common/settings/layout.js";
-import * as uri from "@/common/uri.js";
-import { basename } from "@/renderer/helpers/path.js";
-import { ProcessArgs } from "@/common/ipc/process";
 import { BookFormat } from "@/common/book.js";
 
 enum STORAGE_KEY {
   APP_SETTINGS = "appSetting",
-  RESEARCH_SETTINGS = "researchSetting",
-  BATCH_CONVERSION_SETTINGS = "batchConversionSetting",
-  ANALYSIS_SETTINGS = "analysisSetting",
-  GAME_SETTINGS = "gameSetting",
-  MATE_SEARCH_SETTINGS = "mateSearchSetting",
 }
 
 const fileCache = new Map<string, ArrayBuffer>();
 
-// Electron を使わずにシンプルな Web アプリケーションとして実行した場合に使用します。
 export const webAPI: Bridge = {
   // Core
-  updateAppState(): void {
-    // DO NOTHING
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  updateAppState(_appState: AppState, _busy: boolean): void {
+    // Do Nothing
   },
-  async fetchProcessArgs(): Promise<string> {
-    return JSON.stringify({} as ProcessArgs);
+  fetchProcessArgs(): Promise<string> {
+    return Promise.resolve(JSON.stringify({ type: "gui" }));
   },
   onClosable(): void {
     // Do Nothing
@@ -58,332 +41,124 @@ export const webAPI: Bridge = {
   },
 
   // Settings
-  async loadAppSettings(): Promise<string> {
+  loadAppSettings(): Promise<string> {
     const json = localStorage.getItem(STORAGE_KEY.APP_SETTINGS);
-    if (!json) {
-      return JSON.stringify(defaultAppSettings());
+    if (json) {
+      return Promise.resolve(json);
     }
-    return JSON.stringify({
-      ...defaultAppSettings(),
-      ...JSON.parse(json),
-    });
+    return Promise.resolve(JSON.stringify(defaultAppSettings()));
   },
-  async saveAppSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.APP_SETTINGS, json);
+  saveAppSettings(settings: string): Promise<void> {
+    localStorage.setItem(STORAGE_KEY.APP_SETTINGS, settings);
+    return Promise.resolve();
   },
-  async loadBatchConversionSettings(): Promise<string> {
-    const json = localStorage.getItem(STORAGE_KEY.BATCH_CONVERSION_SETTINGS);
-    if (!json) {
-      return JSON.stringify(defaultBatchConversionSettings());
-    }
-    return JSON.stringify({
-      ...defaultBatchConversionSettings(),
-      ...JSON.parse(json),
-    });
+  loadBookImportSettings(): Promise<string> {
+    return Promise.resolve(JSON.stringify({}));
   },
-  async saveBatchConversionSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.BATCH_CONVERSION_SETTINGS, json);
-  },
-  async loadResearchSettings(): Promise<string> {
-    const json = localStorage.getItem(STORAGE_KEY.RESEARCH_SETTINGS);
-    if (!json) {
-      return JSON.stringify(defaultResearchSettings());
-    }
-    return JSON.stringify({
-      ...defaultResearchSettings(),
-      ...JSON.parse(json),
-    });
-  },
-  async saveResearchSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.RESEARCH_SETTINGS, json);
-  },
-  async loadAnalysisSettings(): Promise<string> {
-    const json = localStorage.getItem(STORAGE_KEY.ANALYSIS_SETTINGS);
-    if (!json) {
-      return JSON.stringify(defaultAnalysisSettings());
-    }
-    return JSON.stringify({
-      ...defaultAnalysisSettings(),
-      ...JSON.parse(json),
-    });
-  },
-  async saveAnalysisSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.ANALYSIS_SETTINGS, json);
-  },
-  async loadGameSettings(): Promise<string> {
-    const json = localStorage.getItem(STORAGE_KEY.GAME_SETTINGS);
-    if (!json) {
-      return JSON.stringify({
-        ...defaultGameSettings(),
-        enableAutoSave: false,
-      });
-    }
-    return JSON.stringify({
-      ...defaultGameSettings(),
-      ...JSON.parse(json),
-    });
-  },
-  async saveGameSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.GAME_SETTINGS, json);
-  },
-  async loadMateSearchSettings(): Promise<string> {
-    const json = localStorage.getItem(STORAGE_KEY.MATE_SEARCH_SETTINGS);
-    if (!json) {
-      return JSON.stringify(defaultMateSearchSettings());
-    }
-    return JSON.stringify({
-      ...defaultMateSearchSettings(),
-      ...JSON.parse(json),
-    });
-  },
-  async saveMateSearchSettings(json: string): Promise<void> {
-    localStorage.setItem(STORAGE_KEY.MATE_SEARCH_SETTINGS, json);
-  },
-  async loadUSIEngines(): Promise<string> {
-    return new USIEngines().json;
-  },
-  async saveUSIEngines(): Promise<void> {
-    // Do Nothing
-  },
-  async loadBookImportSettings(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async saveBookImportSettings(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  saveBookImportSettings(): Promise<void> {
+    return Promise.resolve();
   },
   onUpdateAppSettings(): void {
     // Do Nothing
   },
 
   // Record File
-  async showOpenRecordDialog(formats: string[]): Promise<string> {
-    const input = document.createElement("input");
-    input.setAttribute("type", "file");
-    input.setAttribute("accept", formats.join(","));
-    return new Promise<string>((resolve, reject) => {
-      input.click();
-      input.onchange = () => {
-        const file = input.files?.[0];
-        if (file) {
-          file
-            .arrayBuffer()
-            .then((data) => {
-              const fileURI = uri.issueTempFileURI(file.name);
-              fileCache.clear();
-              fileCache.set(fileURI, data);
-              resolve(fileURI);
-            })
-            .catch((error) => {
-              reject(error);
-            });
-        } else {
-          reject(new Error("invalid file"));
-        }
-      };
-      input.oncancel = () => {
-        resolve("");
-      };
-    });
+  showOpenRecordDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async showSaveRecordDialog(defualtPath: string): Promise<string> {
-    return defualtPath;
+  showSaveRecordDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async showSaveMergedRecordDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showSaveMergedRecordDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async openRecord(uri: string): Promise<Uint8Array> {
-    const data = fileCache.get(uri);
+  openRecord(path: string): Promise<Uint8Array> {
+    const data = fileCache.get(path);
     if (data) {
-      return new Uint8Array(data);
+      return Promise.resolve(new Uint8Array(data));
     }
-    return Promise.reject(new Error("invalid URI"));
+    return Promise.resolve(new Uint8Array());
   },
-  async saveRecord(path: string, data: Uint8Array): Promise<void> {
-    const blob = new Blob([new Uint8Array(data)], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = basename(path);
-    a.click();
-    URL.revokeObjectURL(url);
+  saveRecord(): Promise<void> {
+    return Promise.resolve();
   },
-  async loadRecordFileHistory(): Promise<string> {
-    return JSON.stringify(getEmptyHistory());
+  loadRecordFileHistory(): Promise<string> {
+    return Promise.resolve(JSON.stringify(getEmptyHistory()));
   },
   addRecordFileHistory(): void {
     // Do Nothing
   },
-  async clearRecordFileHistory(): Promise<void> {
-    // Do Nothing
+  clearRecordFileHistory(): Promise<void> {
+    return Promise.resolve();
   },
-  async saveRecordFileBackup(): Promise<void> {
-    // Do Nothing
+  saveRecordFileBackup(): Promise<void> {
+    return Promise.resolve();
   },
-  async loadRecordFileBackup(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  loadRecordFileBackup(): Promise<string> {
+    return Promise.resolve("");
   },
-  async loadRemoteTextFile(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async convertRecordFiles(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async showSelectSFENDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async loadSFENFile(): Promise<string[]> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  loadRemoteTextFile(url: string): Promise<string> {
+    return fetch(url).then((response) => response.text());
   },
   onOpenRecord(): void {
     // Do Nothing
   },
 
   // Book
-  async showOpenBookDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showOpenBookDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async showSaveBookDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showSaveBookDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async clearBook(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  openBook(): Promise<void> {
+    return Promise.resolve();
   },
-  async openBook(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  openBookAsNewSession(): Promise<number> {
+    return Promise.resolve(0);
   },
-  async openBookAsNewSession(): Promise<number> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  closeBookSession(): Promise<void> {
+    return Promise.resolve();
   },
-  async closeBookSession(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  saveBook(): Promise<void> {
+    return Promise.resolve();
   },
-  async saveBook(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  exportBook(): Promise<void> {
+    return Promise.resolve();
   },
-  async exportBook(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  clearBook(): Promise<void> {
+    return Promise.resolve();
   },
-  async getBookFormat(): Promise<BookFormat> {
-    return "yane2016";
+  getBookFormat(): Promise<BookFormat> {
+    return Promise.resolve(BookFormat.SBK);
   },
-  async searchBookMoves(): Promise<string> {
-    return "[]";
+  searchBookMoves(): Promise<string> {
+    return Promise.resolve("[]");
   },
-  async updateBookMove(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  updateBookMove(): Promise<void> {
+    return Promise.resolve();
   },
-  async removeBookMove(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  removeBookMove(): Promise<void> {
+    return Promise.resolve();
   },
-  async updateBookMoveOrder(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  updateBookMoveOrder(): Promise<void> {
+    return Promise.resolve();
   },
-  async importBookMoves(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-
-  // USI
-  async showSelectUSIEngineDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async getUSIEngineInfo(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async getUSIEngineMetadata(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async sendUSIOptionButtonSignal(): Promise<void> {
-    // Do Nothing
-  },
-  async usiLaunch(): Promise<number> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async usiReady(): Promise<void> {
-    // Do Nothing
-  },
-  async usiSetOption(): Promise<void> {
-    // Do Nothing
-  },
-  async usiGo(): Promise<void> {
-    // Do Nothing
-  },
-  async usiGoPonder(): Promise<void> {
-    // Do Nothing
-  },
-  async usiPonderHit(): Promise<void> {
-    // Do Nothing
-  },
-  async usiGoInfinite(): Promise<void> {
-    // Do Nothing
-  },
-  async usiGoMate(): Promise<void> {
-    // Do Nothing
-  },
-  async usiStop(): Promise<void> {
-    // Do Nothing
-  },
-  async usiGameover(): Promise<void> {
-    // Do Nothing
-  },
-  async usiQuit(): Promise<void> {
-    // Do Nothing
-  },
-  onUSIBestMove(): void {
-    // Do Nothing
-  },
-  onUSICheckmate(): void {
-    // Do Nothing
-  },
-  onUSICheckmateNotImplemented(): void {
-    // Do Nothing
-  },
-  onUSICheckmateTimeout(): void {
-    // Do Nothing
-  },
-  onUSINoMate(): void {
-    // Do Nothing
-  },
-  onUSIInfo(): void {
-    // Do Nothing
-  },
-
-  // Sessions
-  async collectSessionStates(): Promise<string> {
-    return JSON.stringify({
-      os: blankOSState(),
-      usiSessions: [],
-    } as SessionStates);
-  },
-  async setupPrompt(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async openPrompt() {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  invokePromptCommand(): void {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  onPromptCommand(): void {
-    // Do Nothing
+  importBookMoves(): Promise<string> {
+    return Promise.resolve(JSON.stringify({ added: 0, merged: 0, skipped: 0 }));
   },
 
   // Images
-  async showSelectImageDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showSelectImageDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  async cropPieceImage(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async exportCaptureAsPNG(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
-  },
-  async exportCaptureAsJPEG(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  cropPieceImage(): Promise<string> {
+    return Promise.resolve("");
   },
 
   // Layout
-  async loadLayoutProfileList(): Promise<[string, string]> {
-    return [uri.ES_STANDARD_LAYOUT_PROFILE, JSON.stringify(emptyLayoutProfileList())];
+  loadLayoutProfileList(): Promise<[string, string]> {
+    return Promise.resolve(["", JSON.stringify(emptyLayoutProfileList())]);
   },
   updateLayoutProfileList(): void {
     // Do Nothing
@@ -392,7 +167,7 @@ export const webAPI: Bridge = {
     // Do Nothing
   },
   createDesktopShortcutForLayoutProfile(): Promise<void> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+    return Promise.resolve();
   },
 
   // Log
@@ -400,49 +175,50 @@ export const webAPI: Bridge = {
     // Do Nothing
   },
   log(level: LogLevel, message: string): void {
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(message);
-        break;
-      case LogLevel.INFO:
-        console.log(message);
-        break;
-      case LogLevel.WARN:
-        console.warn(message);
-        break;
-      case LogLevel.ERROR:
-        console.error(message);
-        break;
+    if (level >= LogLevel.WARN) {
+      console.error(message);
+    } else {
+      console.log(message);
     }
   },
 
   // MISC
-  async showSelectFileDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showSelectFileDialog(): Promise<string> {
+    return new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.onchange = () => {
+        if (input.files && input.files[0]) {
+          resolve(input.files[0].name);
+        } else {
+          resolve("");
+        }
+      };
+      input.click();
+    });
   },
-  async showSelectDirectoryDialog(): Promise<string> {
-    throw new Error(t.thisFeatureNotAvailableOnWebApp);
+  showSelectDirectoryDialog(): Promise<string> {
+    return Promise.resolve("");
   },
-  openExplorer() {
-    // DO NOTHING
+  openExplorer(): void {
+    // Do Nothing
   },
-  openWebBrowser(url: string) {
+  openWebBrowser(url: string): void {
     window.open(url, "_blank");
   },
-  async getMachineSpec(): Promise<string> {
-    const spec: MachineSpec = { cpuCores: 1, memory: 1024 ** 2 };
-    return JSON.stringify(spec);
+  isEncryptionAvailable(): Promise<boolean> {
+    return Promise.resolve(false);
   },
-  async isEncryptionAvailable(): Promise<boolean> {
-    return false;
+  getVersionStatus(): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: "unknown",
+        currentVersion: "",
+        latestVersion: "",
+      } as VersionStatus),
+    );
   },
-  async getVersionStatus(): Promise<string> {
-    return JSON.stringify({} as VersionStatus);
-  },
-  getPathForFile(file: File): string {
-    return file.name;
-  },
-  onProgress(): void {
-    // Do Nothing
+  getPathForFile(): string {
+    return "";
   },
 };

@@ -1,15 +1,12 @@
-import { CommandType } from "@/common/advanced/command.js";
-import { PromptTarget } from "@/common/advanced/prompt.js";
 import { BookFormat } from "@/common/book";
 import { MenuEvent } from "@/common/control/menu.js";
-import { AppState, ResearchState } from "@/common/control/state.js";
+import { AppState } from "@/common/control/state.js";
 import { RecordFileFormat } from "@/common/file/record";
-import { GameResult } from "@/common/game/result.js";
 import { LogLevel, LogType } from "@/common/log.js";
 
 export interface Bridge {
   // Core
-  updateAppState(appState: AppState, researchState: ResearchState, busy: boolean): void;
+  updateAppState(appState: AppState, busy: boolean): void;
   fetchProcessArgs(): Promise<string>;
   onClosable(): void;
   onClose(callback: (confirmations: string[]) => void): void;
@@ -21,18 +18,6 @@ export interface Bridge {
   // Settings
   loadAppSettings(): Promise<string>;
   saveAppSettings(settings: string): Promise<void>;
-  loadBatchConversionSettings(): Promise<string>;
-  saveBatchConversionSettings(settings: string): Promise<void>;
-  loadResearchSettings(): Promise<string>;
-  saveResearchSettings(settings: string): Promise<void>;
-  loadAnalysisSettings(): Promise<string>;
-  saveAnalysisSettings(settings: string): Promise<void>;
-  loadGameSettings(): Promise<string>;
-  saveGameSettings(settings: string): Promise<void>;
-  loadMateSearchSettings(): Promise<string>;
-  saveMateSearchSettings(settings: string): Promise<void>;
-  loadUSIEngines(): Promise<string>;
-  saveUSIEngines(egneins: string): Promise<void>;
   loadBookImportSettings(): Promise<string>;
   saveBookImportSettings(json: string): Promise<void>;
   onUpdateAppSettings(callback: (json: string) => void): void;
@@ -49,9 +34,6 @@ export interface Bridge {
   saveRecordFileBackup(kif: string): Promise<void>;
   loadRecordFileBackup(name: string): Promise<string>;
   loadRemoteTextFile(url: string): Promise<string>;
-  convertRecordFiles(json: string): Promise<string>;
-  showSelectSFENDialog(lastPath: string): Promise<string>;
-  loadSFENFile(path: string): Promise<string[]>;
   onOpenRecord(callback: (path: string) => void): void;
 
   // Book
@@ -70,48 +52,9 @@ export interface Bridge {
   updateBookMoveOrder(session: number, sfen: string, usi: string, order: number): Promise<void>;
   importBookMoves(session: number, json: string): Promise<string>;
 
-  // USI
-  showSelectUSIEngineDialog(): Promise<string>;
-  getUSIEngineInfo(path: string, timeoutSeconds: number): Promise<string>;
-  getUSIEngineMetadata(path: string): Promise<string>;
-  sendUSIOptionButtonSignal(path: string, name: string, timeoutSeconds: number): Promise<void>;
-  usiLaunch(json: string, options: string): Promise<number>;
-  usiReady(sessionID: number): Promise<void>;
-  usiSetOption(sessionID: number, name: string, value: string): Promise<void>;
-  usiGo(sessionID: number, usi: string, timeStatesJSON: string): Promise<void>;
-  usiGoPonder(sessionID: number, usi: string, timeStatesJSON: string): Promise<void>;
-  usiPonderHit(sessionID: number, timeStatesJSON: string): Promise<void>;
-  usiGoInfinite(sessionID: number, usi: string): Promise<void>;
-  usiGoMate(sessionID: number, usi: string, maxSeconds?: number): Promise<void>;
-  usiStop(sessionID: number): Promise<void>;
-  usiGameover(sessionID: number, result: GameResult): Promise<void>;
-  usiQuit(sessionID: number): Promise<void>;
-  onUSIBestMove(
-    callback: (sessionID: number, usi: string, usiMove: string, ponder?: string) => void,
-  ): void;
-  onUSICheckmate(callback: (sessionID: number, usi: string, usiMoves: string[]) => void): void;
-  onUSICheckmateNotImplemented(callback: (sessionID: number) => void): void;
-  onUSICheckmateTimeout(callback: (sessionID: number, usi: string) => void): void;
-  onUSINoMate(callback: (sessionID: number, usi: string) => void): void;
-  onUSIInfo(callback: (sessionID: number, usi: string, json: string) => void): void;
-
-  // Sessions
-  collectSessionStates(): Promise<string>;
-  setupPrompt(target: PromptTarget, sessionID: number): Promise<string>;
-  openPrompt(target: PromptTarget, sessionID: number, name: string): void;
-  invokePromptCommand(
-    target: PromptTarget,
-    sessionID: number,
-    type: CommandType,
-    command: string,
-  ): void;
-  onPromptCommand(callback: (command: string) => void): void;
-
   // Images
   showSelectImageDialog(defaultURL?: string): Promise<string>;
   cropPieceImage(srcURL: string, deleteMargin: boolean): Promise<string>;
-  exportCaptureAsPNG(json: string): Promise<void>;
-  exportCaptureAsJPEG(json: string): Promise<void>;
 
   // Layout
   loadLayoutProfileList(): Promise<[string, string]>;
@@ -128,9 +71,7 @@ export interface Bridge {
   showSelectDirectoryDialog(defaultPath?: string): Promise<string>;
   openExplorer(path: string): void;
   openWebBrowser(url: string): void;
-  getMachineSpec(): Promise<string>;
   isEncryptionAvailable(): Promise<boolean>;
   getVersionStatus(): Promise<string>;
   getPathForFile(file: File): string;
-  onProgress(callback: (progress: number) => void): void;
 }

@@ -1,18 +1,15 @@
 import { MenuEvent } from "@/common/control/menu";
-import { AppState, ResearchState } from "@/common/control/state";
-import { GameResult } from "@/common/game/result";
+import { AppState } from "@/common/control/state";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { Background, Renderer } from "@/common/ipc/channel";
 import { Bridge } from "@/renderer/ipc/bridge";
 import { LogType, LogLevel } from "@/common/log";
-import { PromptTarget } from "@/common/advanced/prompt";
-import { CommandType } from "@/common/advanced/command";
 import { BookFormat } from "@/common/book";
 
 const api: Bridge = {
   // Core
-  updateAppState(appState: AppState, researchState: ResearchState, busy: boolean): void {
-    ipcRenderer.send(Background.UPDATE_APP_STATE, appState, researchState, busy);
+  updateAppState(appState: AppState, busy: boolean): void {
+    ipcRenderer.send(Background.UPDATE_APP_STATE, appState, busy);
   },
   async fetchProcessArgs(): Promise<string> {
     return await ipcRenderer.invoke(Background.FETCH_PROCESS_ARGS);
@@ -52,42 +49,6 @@ const api: Bridge = {
   async saveAppSettings(json: string): Promise<void> {
     await ipcRenderer.invoke(Background.SAVE_APP_SETTINGS, json);
   },
-  async loadBatchConversionSettings(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_BATCH_CONVERSION_SETTINGS);
-  },
-  async saveBatchConversionSettings(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_BATCH_CONVERSION_SETTINGS, json);
-  },
-  async loadResearchSettings(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_RESEARCH_SETTINGS);
-  },
-  async saveResearchSettings(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_RESEARCH_SETTINGS, json);
-  },
-  async loadAnalysisSettings(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_ANALYSIS_SETTINGS);
-  },
-  async saveAnalysisSettings(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_ANALYSIS_SETTINGS, json);
-  },
-  async loadGameSettings(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_GAME_SETTINGS);
-  },
-  async saveGameSettings(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_GAME_SETTINGS, json);
-  },
-  async loadMateSearchSettings(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_MATE_SEARCH_SETTINGS);
-  },
-  async saveMateSearchSettings(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_MATE_SEARCH_SETTINGS, json);
-  },
-  async loadUSIEngines(): Promise<string> {
-    return await ipcRenderer.invoke(Background.LOAD_USI_ENGINES);
-  },
-  async saveUSIEngines(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.SAVE_USI_ENGINES, json);
-  },
   async loadBookImportSettings(): Promise<string> {
     return await ipcRenderer.invoke(Background.LOAD_BOOK_IMPORT_SETTINGS);
   },
@@ -116,15 +77,6 @@ const api: Bridge = {
   },
   async loadRemoteTextFile(url: string): Promise<string> {
     return await ipcRenderer.invoke(Background.LOAD_REMOTE_TEXT_FILE, url);
-  },
-  async convertRecordFiles(json: string): Promise<string> {
-    return await ipcRenderer.invoke(Background.CONVERT_RECORD_FILES, json);
-  },
-  async showSelectSFENDialog(lastPath: string): Promise<string> {
-    return await ipcRenderer.invoke(Background.SHOW_SELECT_SFEN_DIALOG, lastPath);
-  },
-  async loadSFENFile(path: string): Promise<string[]> {
-    return await ipcRenderer.invoke(Background.LOAD_SFEN_FILE, path);
   },
   async loadRecordFileHistory(): Promise<string> {
     return await ipcRenderer.invoke(Background.LOAD_RECORD_FILE_HISTORY);
@@ -194,125 +146,12 @@ const api: Bridge = {
     return await ipcRenderer.invoke(Background.IMPORT_BOOK_MOVES, session, json);
   },
 
-  // USI
-  async showSelectUSIEngineDialog(): Promise<string> {
-    return await ipcRenderer.invoke(Background.SHOW_SELECT_USI_ENGINE_DIALOG);
-  },
-  async getUSIEngineInfo(path: string, timeoutSeconds: number): Promise<string> {
-    return await ipcRenderer.invoke(Background.GET_USI_ENGINE_INFO, path, timeoutSeconds);
-  },
-  async getUSIEngineMetadata(path: string): Promise<string> {
-    return await ipcRenderer.invoke(Background.GET_USI_ENGINE_METADATA, path);
-  },
-  async sendUSIOptionButtonSignal(
-    path: string,
-    name: string,
-    timeoutSeconds: number,
-  ): Promise<void> {
-    await ipcRenderer.invoke(Background.SEND_USI_OPTION_BUTTON_SIGNAL, path, name, timeoutSeconds);
-  },
-  async usiLaunch(json: string, json2: string): Promise<number> {
-    return await ipcRenderer.invoke(Background.LAUNCH_USI, json, json2);
-  },
-  async usiReady(sessionID: number): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_READY, sessionID);
-  },
-  async usiSetOption(sessionID: number, name: string, value: string): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_SET_OPTION, sessionID, name, value);
-  },
-  async usiGo(sessionID: number, usi: string, timeStatesJSON: string): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GO, sessionID, usi, timeStatesJSON);
-  },
-  async usiGoPonder(sessionID: number, usi: string, timeStatesJSON: string): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GO_PONDER, sessionID, usi, timeStatesJSON);
-  },
-  async usiPonderHit(sessionID: number, timeStatesJSON: string): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GO_PONDER_HIT, sessionID, timeStatesJSON);
-  },
-  async usiGoInfinite(sessionID: number, usi: string): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GO_INFINITE, sessionID, usi);
-  },
-  async usiGoMate(sessionID: number, usi: string, maxSeconds?: number): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GO_MATE, sessionID, usi, maxSeconds);
-  },
-  async usiStop(sessionID: number): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_STOP, sessionID);
-  },
-  async usiGameover(sessionID: number, result: GameResult): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_GAMEOVER, sessionID, result);
-  },
-  async usiQuit(sessionID: number): Promise<void> {
-    await ipcRenderer.invoke(Background.USI_QUIT, sessionID);
-  },
-  onUSIBestMove(
-    callback: (sessionID: number, usi: string, usiMove: string, ponder?: string) => void,
-  ): void {
-    ipcRenderer.on(Renderer.USI_BEST_MOVE, (_, sessionID, usi, usiMove, ponder) => {
-      callback(sessionID, usi, usiMove, ponder);
-    });
-  },
-  onUSICheckmate(callback: (sessionID: number, usi: string, moves: string[]) => void): void {
-    ipcRenderer.on(Renderer.USI_CHECKMATE, (_, sessionID, usi, moves) => {
-      callback(sessionID, usi, moves);
-    });
-  },
-  onUSICheckmateNotImplemented(callback: (sessionID: number) => void): void {
-    ipcRenderer.on(Renderer.USI_CHECKMATE_NOT_IMPLEMENTED, (_, sessionID) => {
-      callback(sessionID);
-    });
-  },
-  onUSICheckmateTimeout(callback: (sessionID: number, usi: string) => void): void {
-    ipcRenderer.on(Renderer.USI_CHECKMATE_TIMEOUT, (_, sessionID, usi) => {
-      callback(sessionID, usi);
-    });
-  },
-  onUSINoMate(callback: (sessionID: number, usi: string) => void): void {
-    ipcRenderer.on(Renderer.USI_NO_MATE, (_, sessionID, usi) => {
-      callback(sessionID, usi);
-    });
-  },
-  onUSIInfo(callback: (sessionID: number, usi: string, json: string) => void): void {
-    ipcRenderer.on(Renderer.USI_INFO, (_, sessionID, usi, json) => {
-      callback(sessionID, usi, json);
-    });
-  },
-
-  // Sessions
-  async collectSessionStates(): Promise<string> {
-    return await ipcRenderer.invoke(Background.COLLECT_SESSION_STATES);
-  },
-  async setupPrompt(target: PromptTarget, sessionID: number): Promise<string> {
-    return await ipcRenderer.invoke(Background.SETUP_PROMPT, target, sessionID);
-  },
-  openPrompt(target: PromptTarget, sessionID: number, name: string): void {
-    ipcRenderer.send(Background.OPEN_PROMPT, target, sessionID, name);
-  },
-  invokePromptCommand(
-    target: PromptTarget,
-    sessionID: number,
-    type: CommandType,
-    command: string,
-  ): void {
-    ipcRenderer.send(Background.INVOKE_PROMPT_COMMAND, target, sessionID, type, command);
-  },
-  onPromptCommand(callback: (command: string) => void): void {
-    ipcRenderer.on(Renderer.PROMPT_COMMAND, (_, command) => {
-      callback(command);
-    });
-  },
-
   // Images
   async showSelectImageDialog(defaultURL?: string): Promise<string> {
     return await ipcRenderer.invoke(Background.SHOW_SELECT_IMAGE_DIALOG, defaultURL);
   },
   async cropPieceImage(srcURL: string, deleteMargin: boolean): Promise<string> {
     return await ipcRenderer.invoke(Background.CROP_PIECE_IMAGE, srcURL, deleteMargin);
-  },
-  async exportCaptureAsPNG(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.EXPORT_CAPTURE_AS_PNG, json);
-  },
-  async exportCaptureAsJPEG(json: string): Promise<void> {
-    await ipcRenderer.invoke(Background.EXPORT_CAPTURE_AS_JPEG, json);
   },
 
   // Layout
@@ -352,9 +191,6 @@ const api: Bridge = {
   openWebBrowser(url: string) {
     ipcRenderer.send(Background.OPEN_WEB_BROWSER, url);
   },
-  async getMachineSpec(): Promise<string> {
-    return await ipcRenderer.invoke(Background.GET_MACHINE_SPEC);
-  },
   async isEncryptionAvailable(): Promise<boolean> {
     return await ipcRenderer.invoke(Background.IS_ENCRYPTION_AVAILABLE);
   },
@@ -363,11 +199,6 @@ const api: Bridge = {
   },
   getPathForFile(file: File): string {
     return webUtils.getPathForFile(file);
-  },
-  onProgress(callback: (progress: number) => void): void {
-    ipcRenderer.on(Renderer.PROGRESS, (_, progress) => {
-      callback(progress);
-    });
   },
 };
 

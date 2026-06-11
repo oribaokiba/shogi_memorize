@@ -1,20 +1,9 @@
 import { watch } from "vue";
 import { SpecialMoveType } from "tsshogi";
 import { useStore } from "@/renderer/store/index.js";
-import { useStore as usePromptStore } from "@/renderer/prompt/store.js";
-import {
-  onUSIBestMove,
-  onUSICheckmate,
-  onUSICheckmateNotImplemented,
-  onUSICheckmateTimeout,
-  onUSIInfo,
-  onUSINoMate,
-} from "@/renderer/players/usi.js";
-import { humanPlayer } from "@/renderer/players/human.js";
 import { bridge } from "@/renderer/ipc/api.js";
 import { MenuEvent } from "@/common/control/menu.js";
-import { USIInfoCommand } from "@/common/game/usi.js";
-import { AppState, ResearchState } from "@/common/control/state.js";
+import { AppState } from "@/common/control/state.js";
 import { useAppSettings } from "@/renderer/store/settings.js";
 import { t } from "@/common/i18n/index.js";
 import { LogLevel } from "@/common/log.js";
@@ -32,11 +21,10 @@ export function setup(): void {
 
   // Core
   watch(
-    () => [store.appState, store.researchState, busyState.isBusy],
-    ([appState, researchState, busy]) =>
-      bridge.updateAppState(appState as AppState, researchState as ResearchState, busy as boolean),
+    () => [store.appState, busyState.isBusy],
+    ([appState, busy]) => bridge.updateAppState(appState as AppState, busy as boolean),
   );
-  bridge.updateAppState(store.appState, store.researchState, busyState.isBusy);
+  bridge.updateAppState(store.appState, busyState.isBusy);
   bridge.onClose(async (confirmations: string[]) => {
     try {
       for (const message of confirmations) {
@@ -95,20 +83,14 @@ export function setup(): void {
       case MenuEvent.LOAD_REMOTE_RECORD:
         store.showLoadRemoteFileDialog();
         break;
-      case MenuEvent.BATCH_CONVERSION:
-        store.showBatchConversionDialog();
-        break;
-      case MenuEvent.SHARE:
-        store.showShareDialog();
-        break;
-      case MenuEvent.EXPORT_POSITION_IMAGE:
-        store.showExportBoardImageDialog();
-        break;
       case MenuEvent.COPY_RECORD:
         store.copyRecordKIF();
         break;
       case MenuEvent.COPY_RECORD_KI2:
         store.copyRecordKI2();
+        break;
+      case MenuEvent.COPY_RECORD_CSA:
+        store.copyRecordCSA();
         break;
       case MenuEvent.COPY_RECORD_USI_BEFORE:
         store.copyRecordUSI("before");
@@ -127,6 +109,9 @@ export function setup(): void {
         break;
       case MenuEvent.COPY_RECORD_KI2_FROM_CURRENT_POSITION:
         store.copyRecordKI2({ fromCurrentPosition: true });
+        break;
+      case MenuEvent.COPY_RECORD_CSA_FROM_CURRENT_POSITION:
+        store.copyRecordCSA({ fromCurrentPosition: true });
         break;
       case MenuEvent.COPY_RECORD_USI_FROM_CURRENT_POSITION:
         store.copyRecordUSI("after");
@@ -212,73 +197,11 @@ export function setup(): void {
       case MenuEvent.CHANGE_PIECE_SET:
         store.showPieceSetChangeDialog();
         break;
-      case MenuEvent.START_MATE_SEARCH:
-        store.showMateSearchDialog();
-        break;
-      case MenuEvent.STOP_MATE_SEARCH:
-        store.stopMateSearch();
-        break;
-      case MenuEvent.START_GAME:
-        store.showGameDialog();
-        break;
-      case MenuEvent.STOP_GAME:
-        store.stopGame();
-        break;
-      case MenuEvent.RESIGN:
-        if (!store.isMovableByUser) {
-          break;
-        }
-        useConfirmationStore().show({
-          message: t.areYouSureWantToResign,
-          onOk: () => {
-            humanPlayer.resign();
-          },
-        });
-        break;
-      case MenuEvent.WIN:
-        if (!store.isMovableByUser) {
-          break;
-        }
-        useConfirmationStore().show({
-          message: t.areYouSureWantToDoDeclaration,
-          onOk: () => {
-            humanPlayer.win();
-          },
-        });
-        break;
-      case MenuEvent.CALCULATE_POINTS:
-        store.showJishogiPoints();
-        break;
-      case MenuEvent.DISPLAY_GAME_RESULTS:
-        store.showGameResults();
-        break;
-      case MenuEvent.TOGGLE_RESEARCH:
-        if (store.researchState === ResearchState.RUNNING) {
-          store.stopResearch();
-        } else {
-          store.showResearchDialog();
-        }
-        break;
-      case MenuEvent.START_ANALYSIS:
-        store.showAnalysisDialog();
-        break;
-      case MenuEvent.STOP_ANALYSIS:
-        store.stopAnalysis();
-        break;
       case MenuEvent.FLIP_BOARD:
         useAppSettings().flipBoard();
         break;
       case MenuEvent.APP_SETTINGS_DIALOG:
         store.showAppSettingsDialog();
-        break;
-      case MenuEvent.USI_ENGINES_DIALOG:
-        store.showUsiEngineManagementDialog();
-        break;
-      case MenuEvent.LAUNCH_USI_ENGINE:
-        store.showLaunchUSIEngineDialog();
-        break;
-      case MenuEvent.ELAPSED_TIME_CHART:
-        store.showElapsedTimeChartDialog();
         break;
       case MenuEvent.RESET_BOOK:
         store.showResetBookDialog();
@@ -319,31 +242,12 @@ export function setup(): void {
     });
   });
 
-  // USI
-  bridge.onUSIBestMove(onUSIBestMove);
-  bridge.onUSICheckmate(onUSICheckmate);
-  bridge.onUSICheckmateNotImplemented(onUSICheckmateNotImplemented);
-  bridge.onUSICheckmateTimeout(onUSICheckmateTimeout);
-  bridge.onUSINoMate(onUSINoMate);
-  bridge.onUSIInfo((sessionID: number, usi: string, json: string) => {
-    const info = JSON.parse(json) as USIInfoCommand;
-    onUSIInfo(sessionID, usi, info);
-  });
-
   // Layout
   bridge.onUpdateLayoutProfile((json) => {
     store.updateLayoutProfile(json && JSON.parse(json));
   });
-
-  // MISC
-  bridge.onProgress((progress: number) => {
-    busyState.updateProgress(progress);
-  });
 }
 
 export function setupPrompt(): void {
-  const store = usePromptStore();
-  bridge.onPromptCommand((command: string) => {
-    store.onCommand(JSON.parse(command));
-  });
+  // プロンプト機能は削除
 }

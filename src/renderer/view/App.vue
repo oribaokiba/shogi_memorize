@@ -14,42 +14,17 @@
     <InfoMessage v-if="messageStore.hasMessage" />
     <ErrorMessage v-if="errorStore.hasError" />
     <ConfirmDialog v-if="confirmation.message" />
-    <GameDialog v-if="store.appState === AppState.GAME_DIALOG" />
-    <AnalysisDialog v-if="store.appState === AppState.ANALYSIS_DIALOG" />
-    <MateSearchDialog v-if="store.appState === AppState.MATE_SEARCH_DIALOG" />
-    <USIEngineManagementDialog v-if="store.appState === AppState.USI_ENGINES_DIALOG" />
     <RecordFileHistoryDialog v-if="store.appState === AppState.RECORD_FILE_HISTORY_DIALOG" />
-    <BatchConversionDialog v-if="store.appState === AppState.BATCH_CONVERSION_DIALOG" />
-    <PositionImageExportDialog v-if="store.appState === AppState.EXPORT_POSITION_IMAGE_DIALOG" />
     <AppSettingsDialog v-if="store.isAppSettingsDialogVisible" />
     <PasteDialog v-if="store.appState === AppState.PASTE_DIALOG" />
-    <LaunchUSIEngineDialog v-if="store.appState === AppState.LAUNCH_USI_ENGINE_DIALOG" />
     <LoadRemoteFileDialog v-if="store.appState === AppState.LOAD_REMOTE_FILE_DIALOG" />
-    <ShareDialog v-if="store.appState === AppState.SHARE_DIALOG" />
     <AddBookMovesDialog v-if="store.appState === AppState.ADD_BOOK_MOVES_DIALOG" />
     <ResetBookDialog v-if="store.appState === AppState.RESET_BOOK_DIALOG" />
     <PieceSetChangeDialog v-if="store.appState === AppState.PIECE_SET_CHANGE_DIALOG" />
-    <ResearchDialog v-if="store.researchState === ResearchState.STARTUP_DIALOG" />
     <SearchDuplicatePositionsDialog
       v-if="store.appState === AppState.SEARCH_DUPLICATE_POSITIONS_DIALOG"
       @close="store.destroyModalDialog()"
     />
-    <ElapsedTimeChartDialog v-if="store.appState === AppState.ELAPSED_TIME_CHART_DIALOG" />
-    <PVPreviewDialog
-      v-if="store.pvPreview"
-      :position="store.pvPreview.position"
-      :name="store.pvPreview.engineName"
-      :multi-pv="store.pvPreview.multiPV"
-      :depth="store.pvPreview.depth"
-      :selective-depth="store.pvPreview.selectiveDepth"
-      :score="store.pvPreview.score"
-      :mate="store.pvPreview.mate"
-      :lower-bound="store.pvPreview.lowerBound"
-      :upper-bound="store.pvPreview.upperBound"
-      :pv="store.pvPreview.pv"
-      @close="store.closePVPreviewDialog()"
-    />
-    <ParallelGameViewer v-if="store.appState === AppState.PARALLEL_GAME" />
     <!-- アプリ内通知 -->
     <NotificationOverlay />
     <!-- PCブラウザの場合のみライセンスへの遷移が無いので、画面の隅にボタンを表示する。 -->
@@ -68,10 +43,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import StandardLayout from "@/renderer/view/main/StandardLayout.vue";
-import GameDialog from "@/renderer/view/dialog/GameDialog.vue";
-import ResearchDialog from "@/renderer/view/dialog/ResearchDialog.vue";
-import USIEngineManagementDialog from "@/renderer/view/dialog/USIEngineManagementDialog.vue";
-import PositionImageExportDialog from "@/renderer/view/dialog/PositionImageExportDialog.vue";
 import AppSettingsDialog from "@/renderer/view/dialog/AppSettingsDialog.vue";
 import PasteDialog from "@/renderer/view/dialog/PasteDialog.vue";
 import BusyMessage from "@/renderer/view/dialog/BusyMessage.vue";
@@ -79,23 +50,15 @@ import ConfirmDialog from "@/renderer/view/dialog/ConfirmDialog.vue";
 import InfoMessage from "@/renderer/view/dialog/InfoMessage.vue";
 import ErrorMessage from "@/renderer/view/dialog/ErrorMessage.vue";
 import { useStore } from "@/renderer/store";
-import { AppState, ResearchState } from "@/common/control/state.js";
-import AnalysisDialog from "@/renderer/view/dialog/AnalysisDialog.vue";
+import { AppState } from "@/common/control/state.js";
 import { useAppSettings } from "@/renderer/store/settings";
 import { BackgroundImageType } from "@/common/settings/app";
-import MateSearchDialog from "./dialog/MateSearchDialog.vue";
-import PVPreviewDialog from "./dialog/PVPreviewDialog.vue";
 import RecordFileHistoryDialog from "./dialog/RecordFileHistoryDialog.vue";
-import BatchConversionDialog from "./dialog/BatchConversionDialog.vue";
-import LaunchUSIEngineDialog from "./dialog/LaunchUSIEngineDialog.vue";
 import PieceSetChangeDialog from "./dialog/PieceSetChangeDialog.vue";
 import LoadRemoteFileDialog from "./dialog/LoadRemoteFileDialog.vue";
-import ShareDialog from "./dialog/ShareDialog.vue";
 import AddBookMovesDialog from "./dialog/AddBookMovesDialog.vue";
 import ResetBookDialog from "./dialog/ResetBookDialog.vue";
 import SearchDuplicatePositionsDialog from "./dialog/SearchDuplicatePositionsDialog.vue";
-import ElapsedTimeChartDialog from "./dialog/ElapsedTimeChartDialog.vue";
-import ParallelGameViewer from "./dialog/ParallelGameViewer.vue";
 import NotificationOverlay from "./overlay/NotificationOverlay.vue";
 import { useBusyState } from "@/renderer/store/busy";
 import { useMessageStore } from "@/renderer/store/message";
