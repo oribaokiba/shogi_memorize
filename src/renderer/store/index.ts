@@ -16,6 +16,7 @@ import {
   exportCSA,
   InitialPositionType,
   ImmutableNode,
+  Position,
 } from "tsshogi";
 import { reactive, UnwrapNestedRefs } from "vue";
 import { TextDecodingRule } from "@/common/settings/app.js";
@@ -881,6 +882,60 @@ class Store {
 
     dfs(record.first, []);
     return problems;
+  }
+
+  /**
+   * 新しい形式の問題（USI文字列の手順）を旧形式に変換して暗記解答を開始する
+   */
+  startMemorizeFromNewProblem(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
+    this._memorizeProblems = [];
+    this._currentProblemIndex = -1;
+    this._memorizeStep = 0;
+    this._memorizePlayerColor = undefined;
+    this._isMemorizeProcessing = false;
+
+    // USI文字列からMoveオブジェクトを構築
+    const pos = Position.newBySFEN(problem.sfen);
+    if (!pos) {
+      useErrorStore().add(new Error("問題の初期局面(SFEN)が正しくありません"));
+      return;
+    }
+
+    const moveObjects: Move[] = [];
+    for (const usi of problem.moves) {
+      const move = pos.createMoveByUSI(usi);
+      if (!move) {
+        useErrorStore().add(
+          new Error(`問題 ${problem.name} の${moveObjects.length + 1}手目 (${usi}) が不正です`),
+        );
+        return;
+      }
+      moveObjects.push(move);
+      pos.doMove(move);
+    }
+
+    // 旧形式に変換して設定
+    this._memorizeProblems = [
+      {
+        name: problem.name,
+        moves: moveObjects,
+        playerColor: problem.playerColor,
+      },
+    ];
+    this._currentProblemIndex = 0;
+    this._memorizeStep = 0;
+    this._memorizePlayerColor = problem.playerColor;
+    this._isMemorizeProcessing = false;
+    this._appState = AppState.MEMORIZE;
+
+    // 盤面を初期状態にリセット
+    this.recordManager.resetBySFEN(problem.sfen);
+
+    // 相手の初手があれば自動進行
+    if (moveObjects.length > 0 && moveObjects[0].color !== problem.playerColor) {
+      this.recordManager.appendMove({ move: moveObjects[0] });
+      this._memorizeStep = 1;
+    }
   }
 
   /**
