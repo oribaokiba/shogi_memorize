@@ -939,6 +939,28 @@ class Store {
   }
 
   /**
+   * 棋譜テキストデータを読み込み、全末端ノードを問題としてコレクションに追加する
+   * @returns 追加された問題数（エラー時は0）
+   */
+  importRecordTextToCollection(data: string, sourceName: string): number {
+    if (!this._memorizeCollection) {
+      useErrorStore().add(new Error("問題集が作成されていません"));
+      return 0;
+    }
+    const error = this.recordManager.importRecord(data, {});
+    if (error) {
+      useErrorStore().add(
+        new Error(`棋譜の読み込みに失敗しました (${sourceName}): ${error.message}`),
+      );
+      return 0;
+    }
+    const sfen = this.recordManager.record.initialPosition.sfen;
+    const problems = this.extractNewProblems(this.recordManager.record, sfen);
+    this._memorizeCollection.problems.push(...problems);
+    return problems.length;
+  }
+
+  /**
    * 問題集に新しい問題を追加する
    */
   addProblemToCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {

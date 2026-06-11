@@ -25,28 +25,17 @@
         >
           問題を作成
         </button>
-        <button
-          class="toggle-btn"
-          :class="{ active: mode === 'legacy' }"
-          @click="switchMode('legacy')"
-        >
-          従来モード
-        </button>
       </div>
     </div>
 
     <!-- ========== 問題を解くモード ========== -->
     <template v-if="mode === 'solve'">
-      <!-- 問題集未読み込み -->
       <div v-if="!store.memorizeCollection" class="section">
         <label class="section-label">問題集ファイル（.yaml）</label>
         <input type="file" accept=".yaml,.yml" class="file-input" @change="onOpenYAMLFile" />
         <p class="hint-text">定跡問題集のYAMLファイルを開いてください。</p>
       </div>
-
-      <!-- 問題集読み込み済み -->
       <template v-if="store.memorizeCollection">
-        <!-- 問題一覧 -->
         <div class="section">
           <label class="section-label">{{ store.memorizeCollection.title }}</label>
           <div class="problem-list">
@@ -63,8 +52,6 @@
             </div>
           </div>
         </div>
-
-        <!-- 解答設定 -->
         <div class="section">
           <label class="section-label">解答設定</label>
           <div class="setting-row">
@@ -90,8 +77,6 @@
             <span class="setting-hint">（0=全て）</span>
           </div>
         </div>
-
-        <!-- 解答状態 -->
         <div v-if="currentSolveProblem" class="section">
           <div class="status-row">
             <span class="status-label">問題:</span>
@@ -135,7 +120,10 @@
           <button class="btn btn-action" @click="importFromRecord">現在の棋譜から問題追加</button>
         </div>
         <div class="setting-row">
+          <button class="btn btn-action" @click="openRecordFile">棋譜ファイルを開く</button>
           <button class="btn btn-action" @click="openYAMLForEditing">YAMLファイルを開く</button>
+        </div>
+        <div class="setting-row">
           <button class="btn btn-action" @click="saveYAMLFile">YAMLファイルに保存</button>
         </div>
       </div>
@@ -157,93 +145,6 @@
         </div>
       </div>
     </template>
-
-    <!-- ========== 従来モード（互換性維持） ========== -->
-    <template v-if="mode === 'legacy'">
-      <div class="section">
-        <label class="section-label">定跡KIFファイル</label>
-        <input type="file" accept=".kif,.kifu" class="file-input" @change="onLegacyFileChange" />
-      </div>
-      <div v-if="store.memorizeProblems.length === 0" class="section">
-        <p class="hint-text">練習したい定跡のKIFファイルをインポートしてください。</p>
-      </div>
-      <template v-if="store.memorizeProblems.length > 0">
-        <div class="section">
-          <label class="section-label">問題</label>
-          <select
-            class="problem-select"
-            :value="store.currentProblemIndex"
-            @change="onLegacySelectProblem"
-          >
-            <option value="-1" disabled>問題を選択</option>
-            <option v-for="(problem, idx) in store.memorizeProblems" :key="idx" :value="idx">
-              {{ idx + 1 }}. {{ problem.name }} ({{ problem.moves.length }}手)
-            </option>
-          </select>
-        </div>
-        <div class="section">
-          <label class="section-label">自分の手番</label>
-          <div class="toggle-group">
-            <button
-              class="toggle-btn"
-              :class="{ active: selectedColor === undefined }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(undefined)"
-            >
-              デフォルト
-            </button>
-            <button
-              class="toggle-btn"
-              :class="{ active: selectedColor === Color.BLACK }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(Color.BLACK)"
-            >
-              先手 (▲)
-            </button>
-            <button
-              class="toggle-btn"
-              :class="{ active: selectedColor === Color.WHITE }"
-              :disabled="store.isMemorizeProcessing"
-              @click="changePlayerColor(Color.WHITE)"
-            >
-              後手 (△)
-            </button>
-          </div>
-        </div>
-        <div v-if="hasLegacyProblem" class="section">
-          <div class="status-row">
-            <span class="status-label">手番:</span>
-            <span class="status-value" :class="legacyPlayerColorClass">
-              {{ legacyActualPlayerColor === Color.BLACK ? "先手 (▲)" : "後手 (△)" }}
-            </span>
-          </div>
-          <div class="status-row">
-            <span class="status-label">進捗:</span>
-            <span class="status-value">{{ store.memorizeStep }} / {{ legacyTotalMoves }}手</span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" :style="{ width: legacyProgressPercent + '%' }"></div>
-          </div>
-          <div class="action-buttons">
-            <button
-              class="btn btn-restart"
-              :disabled="store.isMemorizeProcessing"
-              @click="legacyRestart"
-            >
-              最初から
-            </button>
-            <button
-              class="btn btn-giveup"
-              :disabled="legacyIsCleared || store.isMemorizeProcessing"
-              @click="store.giveUpMemorize()"
-            >
-              ギブアップ
-            </button>
-          </div>
-          <div v-if="legacyIsCleared" class="clear-message">🎉 クリアしました！</div>
-        </div>
-      </template>
-    </template>
   </div>
 </template>
 
@@ -254,9 +155,8 @@ import { useAppSettings } from "@/renderer/store/settings";
 import { Color } from "tsshogi";
 import { Tab } from "@/common/settings/app";
 import type { MemorizeProblem } from "@/common/memorize/index.js";
-import api from "@/renderer/ipc/api";
 
-type PanelMode = "solve" | "create" | "legacy";
+type PanelMode = "solve" | "create";
 
 const store = useStore();
 const appSettings = useAppSettings();
@@ -275,7 +175,7 @@ const closeMemorize = () => {
 // === 問題を解くモード ===
 const isRandomOrder = ref(false);
 const maxQuestions = ref(0);
-const currentSolveOrder: ref<number[]> = ref([]);
+const currentSolveOrder = ref<number[]>([]);
 const currentSolveOrderIdx = ref(0);
 
 const currentSolveIndex = computed(() => {
@@ -326,7 +226,6 @@ const onOpenYAMLFile = (event: Event) => {
       alert("問題集の読み込みに失敗しました: " + err.message);
       return;
     }
-    // 読み込み成功時、問題順を初期化
     buildSolveOrder();
   };
   reader.readAsText(file, "utf-8");
@@ -341,13 +240,11 @@ const buildSolveOrder = () => {
   const count = store.memorizeCollection.problems.length;
   const indices = Array.from({ length: count }, (_, i) => i);
   if (isRandomOrder.value) {
-    // Fisher-Yates shuffle
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
   }
-  // 上限で切り詰め
   const max = maxQuestions.value > 0 ? Math.min(maxQuestions.value, count) : count;
   currentSolveOrder.value = indices.slice(0, max);
   currentSolveOrderIdx.value = 0;
@@ -360,7 +257,6 @@ const onChangeMaxQuestions = (event: Event) => {
 };
 
 const startSolveProblem = (collectionIdx: number) => {
-  // 指定された問題から解答を始めるために順序を再構築
   if (!store.memorizeCollection) {
     return;
   }
@@ -372,7 +268,6 @@ const startSolveProblem = (collectionIdx: number) => {
   }
 
   if (isRandomOrder.value) {
-    // ランダム: 指定問題を先頭に、残りをシャッフル
     const rest = indices.filter((i) => i !== collectionIdx);
     for (let i = rest.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -386,53 +281,16 @@ const startSolveProblem = (collectionIdx: number) => {
   }
   currentSolveOrderIdx.value = 0;
 
-  // 実際の問題をStoreにセット
   const problem = store.memorizeCollection.problems[collectionIdx];
   if (problem) {
-    convertAndStartProblem(problem);
-  }
-};
-
-const convertAndStartProblem = (problem: MemorizeProblem) => {
-  // 新しいMemorizeProblemを旧形式に変換して開始
-  const color = problem.playerColor;
-  // 既存の暗記Storeをクリア
-  (store as any)._memorizeProblems = [
-    {
-      name: problem.name,
-      moves: problem.moves.map((usi) => {
-        // USI文字列からMoveオブジェクトを生成（tsshogiのAPIに合わせる）
-        const m = new (require("tsshogi").Move)(problem.sfen, usi);
-        return m;
-      }),
-      playerColor: color,
-    },
-  ];
-  (store as any)._currentProblemIndex = 0;
-  (store as any)._memorizeStep = 0;
-  (store as any)._memorizePlayerColor = color;
-  (store as any)._isMemorizeProcessing = false;
-  (store as any)._appState = 8; // AppState.MEMORIZE
-
-  // 盤面を初期化
-  const { Position } = require("tsshogi");
-  const pos = Position.newBySFEN(problem.sfen);
-  if (pos) {
-    (store as any).recordManager.resetBySFEN(problem.sfen);
-  }
-
-  // 相手の初手があれば自動進行
-  const moves = problem.moves;
-  if (moves.length > 0 && moves[0].color !== color) {
-    (store as any).recordManager.appendMove({ move: moves[0] });
-    (store as any)._memorizeStep = 1;
+    store.startMemorizeFromNewProblem(problem);
   }
 };
 
 const restartSolveProblem = () => {
   const p = currentSolveProblem.value;
   if (p) {
-    convertAndStartProblem(p);
+    store.startMemorizeFromNewProblem(p);
   }
 };
 
@@ -460,6 +318,48 @@ const importFromRecord = () => {
   } else {
     alert("棋譜に手順がありません。");
   }
+};
+
+const openRecordFile = () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".kif,.kifu,.ki2,.ki2u,.csa,.usi,.jkf,.sfen,.json";
+  input.onchange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (!target.files || !target.files[0]) {
+      return;
+    }
+    const file = target.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (!text) {
+        return;
+      }
+      const count = store.importRecordTextToCollection(text, file.name);
+      if (count > 0) {
+        alert(`${count}件の問題を追加しました（${file.name}）。`);
+      } else {
+        alert("棋譜から問題を抽出できませんでした。");
+      }
+    };
+    // Shift-JIS -> UTF-8 の順でトライ
+    reader.readAsText(file, "shift-jis");
+    reader.onerror = () => {
+      const reader2 = new FileReader();
+      reader2.onload = (e2) => {
+        const text2 = e2.target?.result as string;
+        if (text2) {
+          const count2 = store.importRecordTextToCollection(text2, file.name);
+          if (count2 > 0) {
+            alert(`${count2}件の問題を追加しました（${file.name}）。`);
+          }
+        }
+      };
+      reader2.readAsText(file, "utf-8");
+    };
+  };
+  input.click();
 };
 
 const openYAMLForEditing = () => {
@@ -495,7 +395,6 @@ const saveYAMLFile = () => {
     alert(yaml.message);
     return;
   }
-  // Electron環境なら保存ダイアログ、Web環境ならダウンロード
   const blob = new Blob([yaml], { type: "text/yaml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -507,86 +406,6 @@ const saveYAMLFile = () => {
 
 const removeProblem = (idx: number) => {
   store.removeProblemFromCollection(idx);
-};
-
-// === 従来モード（互換性維持） ===
-const selectedColor = computed(() => store.memorizePlayerColor);
-const hasLegacyProblem = computed(
-  () => store.currentProblemIndex >= 0 && store.currentProblemIndex < store.memorizeProblems.length,
-);
-const legacyTotalMoves = computed(() => store.currentProblem?.moves.length ?? 0);
-const legacyActualPlayerColor = computed(() => {
-  if (!store.currentProblem) {
-    return Color.BLACK;
-  }
-  return store.memorizePlayerColor !== undefined
-    ? store.memorizePlayerColor
-    : store.currentProblem.playerColor;
-});
-const legacyProgressPercent = computed(() => {
-  if (legacyTotalMoves.value === 0) {
-    return 0;
-  }
-  return (store.memorizeStep / legacyTotalMoves.value) * 100;
-});
-const legacyIsCleared = computed(() => {
-  if (legacyTotalMoves.value === 0) {
-    return false;
-  }
-  return store.memorizeStep >= legacyTotalMoves.value;
-});
-const legacyPlayerColorClass = computed(() =>
-  legacyActualPlayerColor.value === Color.BLACK ? "sente" : "gote",
-);
-
-const onLegacyFileChange = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    loadLegacyKIFFile(target.files[0]);
-  }
-};
-
-const loadLegacyKIFFile = (file: File) => {
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const text = e.target?.result as string;
-    if (text) {
-      const err = store.importKIFForMemorize(text);
-      if (err) {
-        const reader2 = new FileReader();
-        reader2.onload = (e2) => {
-          const text2 = e2.target?.result as string;
-          if (text2) {
-            const err2 = store.importKIFForMemorize(text2);
-            if (err2) {
-              alert("KIFのインポートに失敗しました: " + err2.message);
-            }
-          }
-        };
-        reader2.readAsText(file, "utf-8");
-      }
-    }
-  };
-  reader.readAsText(file, "shift-jis");
-};
-
-const onLegacySelectProblem = (event: Event) => {
-  const idx = parseInt((event.target as HTMLSelectElement).value, 10);
-  if (!isNaN(idx) && idx >= 0) {
-    store.startMemorizeProblem(idx, store.memorizePlayerColor);
-  }
-};
-
-const changePlayerColor = (color: Color | undefined) => {
-  if (store.currentProblemIndex !== -1) {
-    store.startMemorizeProblem(store.currentProblemIndex, color);
-  }
-};
-
-const legacyRestart = () => {
-  if (store.currentProblemIndex !== -1) {
-    store.startMemorizeProblem(store.currentProblemIndex, store.memorizePlayerColor);
-  }
 };
 </script>
 
@@ -654,20 +473,6 @@ const legacyRestart = () => {
   font-size: 0.9rem;
   box-sizing: border-box;
 }
-.problem-select {
-  width: 100%;
-  padding: 6px 8px;
-  background-color: var(--text-bg-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-.problem-select option {
-  background-color: var(--text-bg-color);
-  color: var(--text-color);
-}
 .toggle-group {
   display: flex;
   border: 1px solid var(--border-color);
@@ -688,17 +493,13 @@ const legacyRestart = () => {
 .toggle-btn:last-child {
   border-right: none;
 }
-.toggle-btn:hover:not(:disabled) {
+.toggle-btn:hover {
   background: var(--button-hover-bg-color);
 }
 .toggle-btn.active {
   background: var(--button-active-bg-color);
   color: var(--text-color);
   font-weight: bold;
-}
-.toggle-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 .toggle-btn-sm {
   padding: 4px 12px;
@@ -847,19 +648,14 @@ const legacyRestart = () => {
   background: #2196f3;
   color: white;
 }
-.btn-restart:hover:not(:disabled) {
+.btn-restart:hover {
   background: #1976d2;
-}
-.btn-restart:disabled {
-  background: #e0e0e0;
-  color: #9e9e9e;
-  cursor: not-allowed;
 }
 .btn-giveup {
   background: #9e9e9e;
   color: white;
 }
-.btn-giveup:hover:not(:disabled) {
+.btn-giveup:hover {
   background: #757575;
 }
 .btn-giveup:disabled {
