@@ -38,7 +38,22 @@
       @resize="onResize"
       @move="onMove"
       @edit="onEdit"
-    />
+    >
+      <template #right-control>
+        <ControlPane
+          v-show="rightControlType !== RightSideControlType.NONE"
+          class="full"
+          :group="ControlGroup.Group1"
+        />
+      </template>
+      <template #left-control>
+        <ControlPane
+          v-show="leftControlType !== LeftSideControlType.NONE"
+          class="full"
+          :group="ControlGroup.Group2"
+        />
+      </template>
+    </BoardView>
   </div>
 </template>
 
@@ -46,6 +61,7 @@
 import { t } from "@/common/i18n";
 import { computed, PropType } from "vue";
 import BoardView from "@/renderer/view/primitive/BoardView.vue";
+import ControlPane, { ControlGroup } from "@/renderer/view/main/ControlPane.vue";
 import { Move, PositionChange, getBlackPlayerName, getWhitePlayerName } from "tsshogi";
 import { RectSize } from "@/common/assets/geometry.js";
 import { useStore } from "@/renderer/store";
