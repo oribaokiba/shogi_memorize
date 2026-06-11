@@ -215,6 +215,7 @@ export type AppSettings = {
   returnCode: string;
   autoSaveDirectory: string; // Deprecated
   recordFileNameTemplate: string;
+  useCSAV3: boolean;
   useUTF8ForKifAndKi2: boolean;
   enableUSIFileStartpos: boolean;
   enableUSIFileResign: boolean; // Deprecated
@@ -289,6 +290,8 @@ export function isLogEnabled(type: LogType, appSettings: AppSettings): boolean {
       return appSettings.enableAppLog;
     case LogType.USI:
       return appSettings.enableUSILog;
+    default:
+      return false;
   }
 }
 
@@ -374,6 +377,7 @@ export function defaultAppSettings(opt?: {
     returnCode: opt?.returnCode || "\r\n",
     autoSaveDirectory: opt?.autoSaveDirectory || "",
     recordFileNameTemplate: defaultRecordFileNameTemplate,
+    useCSAV3: false,
     useUTF8ForKifAndKi2: false,
     enableUSIFileStartpos: true,
     enableUSIFileResign: false,

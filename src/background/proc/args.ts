@@ -1,10 +1,9 @@
 import { isSupportedRecordFilePath } from "@/background/file/extensions.js";
-import { HeadlessModeOperation } from "@/background/headless/command.js";
 import { ProcessArgs as GUIArgs } from "@/common/ipc/process.js";
 import { LayoutProfile } from "@/common/settings/layout.js";
 import { loadLayoutProfileListSync } from "@/background/settings.js";
 
-type ProcessArgs = ({ type: "headless" } & HeadlessModeOperation) | ({ type: "gui" } & GUIArgs);
+type ProcessArgs = { type: "gui" } & GUIArgs;
 
 export function parseProcessArgs(args: string[]): ProcessArgs | Error {
   // GUI mode option:
@@ -48,33 +47,6 @@ export function parseProcessArgs(args: string[]): ProcessArgs | Error {
         return new Error(`Invalid layout profile: ${nextArg}`);
       }
       i++;
-    } else if (arg === "--add-engine") {
-      // エンジン追加
-      const usage = "Usage: --add-engine <path> <name> <timeout> [<engine_options_base64>]";
-      if (args.length < i + 4) {
-        return new Error(usage);
-      }
-      const path = args[++i];
-      if (!path) {
-        return new Error("Empty engine path");
-      }
-      const name = args[++i];
-      if (!name) {
-        return new Error("Empty engine name");
-      }
-      const timeout = Number(args[++i]);
-      if (isNaN(timeout) || timeout < 0) {
-        return new Error("Invalid timeout value");
-      }
-      const engineOptionsBase64 = args[++i] as string | undefined;
-      return {
-        type: "headless",
-        operation: "addEngine",
-        path,
-        name,
-        timeout,
-        engineOptionsBase64,
-      };
     }
   }
   return {

@@ -5,6 +5,8 @@ import { Bridge } from "@/renderer/ipc/bridge.js";
 import { getEmptyHistory } from "@/common/file/history.js";
 import { emptyLayoutProfileList } from "@/common/settings/layout.js";
 import { VersionStatus } from "@/common/version.js";
+import { AppState } from "@/common/control/state.js";
+import { BookFormat } from "@/common/book.js";
 
 enum STORAGE_KEY {
   APP_SETTINGS = "appSetting",
@@ -129,7 +131,8 @@ export const webAPI: Bridge = {
   clearBook(): Promise<void> {
     return Promise.resolve();
   },
-  getBookFormat(): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getBookFormat(_session: number): Promise<BookFormat> {
     return Promise.resolve("sbk");
   },
   searchBookMoves(): Promise<string> {

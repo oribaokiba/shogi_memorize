@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, FileFilter, ipcMain, shell, WebContents } from "electron";
+import { BrowserWindow, dialog, FileFilter, ipcMain, shell } from "electron";
 import { Background, Renderer } from "@/common/ipc/channel.js";
 import path from "node:path";
 import { promises as fs } from "node:fs";
@@ -26,7 +26,6 @@ import {
   loadBackup,
   saveBackup,
 } from "@/background/file/history.js";
-import { getAppPath } from "@/background/proc/path-electron.js";
 import { isSupportedRecordFilePath } from "@/background/file/extensions.js";
 import { readStatus as readVersionStatus } from "@/background/version.js";
 import { fetch } from "@/background/helpers/http.js";
@@ -54,8 +53,6 @@ import { ProcessArgs } from "@/common/ipc/process.js";
 import { createDesktopShortcut } from "@/background/file/shortcuts.js";
 import { escapeFileName } from "@/common/file/path.js";
 import { Lazy } from "@/common/helpers/lazy.js";
-
-const isWindows = process.platform === "win32";
 
 let mainWindow: BrowserWindow;
 let appState = AppState.NORMAL;
@@ -592,5 +589,11 @@ export function updateAppSettings(update: AppSettingsUpdate): void {
 export function sendProgress(progress: number): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(Renderer.PROGRESS, progress);
+  }
+}
+
+export function openRecord(path: string): void {
+  if (isSupportedRecordFilePath(path)) {
+    mainWindow.webContents.send(Renderer.OPEN_RECORD, path);
   }
 }

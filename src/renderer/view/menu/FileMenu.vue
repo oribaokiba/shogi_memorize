@@ -1,6 +1,6 @@
 <template>
   <div>
-    <dialog v-if="!isInitialPositionMenuVisible && !isGameMenuVisible" ref="dialog" class="menu">
+    <dialog v-if="!isInitialPositionMenuVisible" ref="dialog" class="menu">
       <div class="group">
         <button data-hotkey="Escape" class="close" @click="onClose">
           <Icon :icon="IconType.CLOSE" />
@@ -11,16 +11,6 @@
         <button @click="onFlip">
           <Icon :icon="IconType.FLIP" />
           <div class="label">{{ t.flipBoard }}</div>
-        </button>
-      </div>
-      <div v-if="isMobileWebApp()" class="group">
-        <button v-if="states.game" @click="onGame">
-          <Icon :icon="IconType.GAME" />
-          <div class="label">{{ t.game }}</div>
-        </button>
-        <button v-if="states.stopGame" @click="onStopGame">
-          <Icon :icon="IconType.STOP" />
-          <div class="label">{{ t.stopGame }}</div>
         </button>
       </div>
       <div class="group">
@@ -63,22 +53,6 @@
         <button v-if="isNative()" :disabled="!states.loadRemoteFile" @click="onLoadRemoteFile">
           <Icon :icon="IconType.INTERNET" />
           <div class="label">{{ t.loadRecordFromWeb }}</div>
-        </button>
-        <button :disabled="!states.share" @click="onShare">
-          <Icon :icon="IconType.SHARE" />
-          <div class="label">{{ t.share }}</div>
-        </button>
-        <button v-if="!isMobileWebApp()" :disabled="!states.exportImage" @click="onExportImage">
-          <Icon :icon="IconType.GRID" />
-          <div class="label">{{ t.positionImage }}</div>
-        </button>
-        <button v-if="isNative()" :disabled="!states.batchConversion" @click="onBatchConversion">
-          <Icon :icon="IconType.BATCH" />
-          <div class="label">{{ t.batchConversion }}</div>
-        </button>
-        <button v-if="isNative()" @click="onOpenAutoSaveDirectory">
-          <Icon :icon="IconType.OPEN_FOLDER" />
-          <div class="label">{{ t.openAutoSaveDirectory }}</div>
         </button>
       </div>
       <div class="group">
@@ -133,7 +107,6 @@
       </div>
     </dialog>
     <InitialPositionMenu v-if="isInitialPositionMenuVisible" @close="emit('close')" />
-    <MobileGameMenu v-if="isGameMenuVisible" @close="emit('close')" />
   </div>
 </template>
 
@@ -145,13 +118,12 @@ import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
 import { useStore } from "@/renderer/store";
 import { AppState } from "@/common/control/state.js";
-import api, { isMobileWebApp, isNative } from "@/renderer/ipc/api";
+import { isMobileWebApp, isNative } from "@/renderer/ipc/api";
 import { useAppSettings } from "@/renderer/store/settings";
 import { installHotKeyForDialog, uninstallHotKeyForDialog } from "@/renderer/devices/hotkey";
 import { openCopyright } from "@/renderer/helpers/copyright";
 import { RecordFileFormat } from "@/common/file/record";
 import InitialPositionMenu from "@/renderer/view/menu/InitialPositionMenu.vue";
-import MobileGameMenu from "@/renderer/view/menu/MobileGameMenu.vue";
 
 const emit = defineEmits<{
   close: [];
@@ -160,7 +132,6 @@ const emit = defineEmits<{
 const store = useStore();
 const dialog = ref();
 const isInitialPositionMenuVisible = ref(false);
-const isGameMenuVisible = ref(false);
 const onClose = () => {
   emit("close");
 };
@@ -173,13 +144,6 @@ onBeforeUnmount(() => {
 });
 const onFlip = () => {
   useAppSettings().flipBoard();
-  emit("close");
-};
-const onGame = () => {
-  isGameMenuVisible.value = true;
-};
-const onStopGame = () => {
-  store.stopGame();
   emit("close");
 };
 const onNewFile = () => {
@@ -212,23 +176,6 @@ const onHistory = () => {
 };
 const onLoadRemoteFile = () => {
   store.showLoadRemoteFileDialog();
-  emit("close");
-};
-const onShare = () => {
-  store.showShareDialog();
-  emit("close");
-};
-const onBatchConversion = () => {
-  store.showBatchConversionDialog();
-  emit("close");
-};
-const onExportImage = () => {
-  store.showExportBoardImageDialog();
-  emit("close");
-};
-const onOpenAutoSaveDirectory = async () => {
-  const gameSettings = await api.loadGameSettings();
-  api.openExplorer(gameSettings.autoSaveDirectory);
   emit("close");
 };
 const onCopyKIF = () => {
@@ -273,17 +220,12 @@ const onAppSettings = () => {
 };
 const states = computed(() => {
   return {
-    game: store.appState === AppState.NORMAL,
-    stopGame: store.appState === AppState.GAME,
     newFile: store.appState === AppState.NORMAL,
     open: store.appState === AppState.NORMAL,
     save: store.appState === AppState.NORMAL,
     saveAs: store.appState === AppState.NORMAL,
     history: store.appState === AppState.NORMAL,
     loadRemoteFile: store.appState === AppState.NORMAL,
-    share: store.appState === AppState.NORMAL,
-    batchConversion: store.appState === AppState.NORMAL,
-    exportImage: store.appState === AppState.NORMAL,
     paste: store.appState === AppState.NORMAL,
   };
 });

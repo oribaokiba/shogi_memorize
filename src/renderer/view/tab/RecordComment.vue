@@ -16,12 +16,6 @@
             <span>{{ t.bookmarkList }}</span>
           </button>
         </div>
-        <div v-if="pvs.length !== 0" class="row play-buttons">
-          <button v-for="(pv, index) of pvs" :key="index" class="play" @click="play(pv)">
-            <Icon :icon="IconType.PLAY" />
-            <span>{{ t.pv }}{{ pvs.length >= 2 ? " " + (index + 1) : "" }}</span>
-          </button>
-        </div>
       </div>
     </div>
     <BookmarkListDialog
@@ -36,9 +30,6 @@ import { t } from "@/common/i18n";
 import { useStore } from "@/renderer/store";
 import { AppState } from "@/common/control/state.js";
 import { computed, ref } from "vue";
-import Icon from "@/renderer/view/primitive/Icon.vue";
-import { IconType } from "@/renderer/assets/icons";
-import { Move } from "tsshogi";
 import BookmarkListDialog from "@/renderer/view/dialog/BookmarkListDialog.vue";
 
 defineProps({
@@ -51,7 +42,6 @@ defineProps({
 const store = useStore();
 const readonly = computed(() => store.appState != AppState.NORMAL);
 const comment = computed(() => store.record.current.comment);
-const pvs = computed(() => store.inCommentPVs);
 const bookmark = computed(() => store.record.current.bookmark);
 const bookmarkListDialogVisible = ref(false);
 
@@ -67,13 +57,6 @@ const changeBookmark = (event: Event) => {
 
 const openBookmarkList = () => {
   bookmarkListDialogVisible.value = true;
-};
-
-const play = (pv: Move[]) => {
-  store.showPVPreviewDialog({
-    position: store.record.position,
-    pv: pv,
-  });
 };
 </script>
 

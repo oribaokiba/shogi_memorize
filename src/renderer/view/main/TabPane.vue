@@ -4,13 +4,14 @@
       <div class="row tabs">
         <div
           v-for="tab in visibleTabs"
+          v-show="tabs[tab]"
           :key="tab"
           class="tab"
           :class="{ selected: activeTab === tab }"
           @click="changeSelect(tab)"
         >
-          <Icon :icon="tabs[tab].icon" />
-          <span>{{ tabs[tab].title }}</span>
+          <Icon v-if="tabs[tab]" :icon="tabs[tab].icon" />
+          <span v-if="tabs[tab]">{{ tabs[tab].title }}</span>
         </div>
         <div v-if="displayMinimizeToggle" class="tab end" @click="minimize">
           <Icon :icon="IconType.ARROW_DROP" />
@@ -73,7 +74,7 @@ const changeSelect = (tab: Tab) => emit("onChangeTab", tab);
 const minimize = () => emit("onMinimize");
 const contentSize = computed(() => props.size.reduce(new RectSize(0, headerHeight)));
 
-const tabs = {
+const tabs: Partial<Record<Tab, { title: string; icon: IconType }>> = {
   [Tab.RECORD_INFO]: {
     title: t.recordProperties,
     icon: IconType.DESCRIPTION,

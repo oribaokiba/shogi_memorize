@@ -18,7 +18,12 @@ import { createWindow } from "./window/main.js";
 import { setProcessArgs } from "./window/ipc.js";
 
 const args = parseProcessArgs(process.argv);
-setProcessArgs(args);
+if (args instanceof Error) {
+  getAppLogger().error("failed to parse process arguments: %s", args.message);
+  app.quit();
+} else {
+  setProcessArgs(args);
+}
 
 const appSettings = loadAppSettingsOnce();
 for (const type of Object.values(LogType)) {

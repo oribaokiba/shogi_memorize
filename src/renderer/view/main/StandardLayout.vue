@@ -27,7 +27,6 @@
                 :show-bottom-control="!isConsecutiveGame"
                 :show-branches="!isConsecutiveGame"
               />
-              <ConsecutiveGameProgress v-if="isConsecutiveGame" />
             </div>
           </div>
         </div>
@@ -72,7 +71,6 @@
                 :show-bottom-control="!isConsecutiveGame"
                 :show-branches="!isConsecutiveGame"
               />
-              <ConsecutiveGameProgress v-if="isConsecutiveGame" />
             </div>
           </div>
           <button
@@ -90,11 +88,7 @@
           v-if="appSettings.tabPaneType === TabPaneType.SINGLE"
           class="full"
           :size="tabPaneSize"
-          :visible-tabs="[
-            Tab.MEMORIZE,
-            Tab.RECORD_INFO,
-            Tab.COMMENT,
-          ]"
+          :visible-tabs="[Tab.MEMORIZE, Tab.RECORD_INFO, Tab.COMMENT]"
           :active-tab="appSettings.tab"
           :display-minimize-toggle="true"
           @on-change-tab="onChangeTab"
@@ -153,9 +147,6 @@ import { t } from "@/common/i18n";
 import { reactive, onMounted, onUnmounted, computed, ref } from "vue";
 import BoardPane from "./BoardPane.vue";
 import RecordPane, { minWidth as minRecordWidth } from "./RecordPane.vue";
-import ConsecutiveGameProgress from "./ConsecutiveGameProgress.vue";
-import { useStore } from "@/renderer/store";
-import { AppState } from "@/common/control/state.js";
 import TabPane, { headerHeight as tabHeaderHeight } from "./TabPane.vue";
 import MemorizePanel from "@/renderer/view/tab/MemorizePanel.vue";
 import RecordComment from "@/renderer/view/tab/RecordComment.vue";
@@ -178,14 +169,11 @@ const margin = 10;
 const lazyUpdateDelay = 100;
 const memorizeSidePanelWidth = 320;
 
-const store = useStore();
 const appSettings = useAppSettings();
 
 const isMemorizeMode = computed(() => appSettings.tab === Tab.MEMORIZE);
 
-const isConsecutiveGame = computed(
-  () => store.appState === AppState.GAME && store.gameSettings.repeat >= 2,
-);
+const isConsecutiveGame = false;
 const windowSize = reactive(new RectSize(window.innerWidth, window.innerHeight));
 const topPaneHeightPercentage = ref(appSettings.topPaneHeightPercentage);
 const bottomLeftPaneWidthPercentage = ref(appSettings.bottomLeftPaneWidthPercentage);

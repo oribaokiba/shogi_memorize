@@ -1,6 +1,5 @@
 import { app, BrowserWindow } from "electron";
 import {
-  getAppState,
   isClosable,
   onClose,
   openRecord,
@@ -11,7 +10,6 @@ import {
 import { loadWindowSettings, saveWindowSettings } from "@/background/settings.js";
 import { buildWindowSettings } from "@/common/settings/window.js";
 import { getAppLogger } from "@/background/log.js";
-import { AppState } from "@/common/control/state.js";
 import { getPreloadPath, isDevelopment, isTest } from "@/background/proc/env.js";
 import { checkUpdates } from "@/background/version.js";
 import { setupMenu } from "@/background/window/menu.js";
@@ -44,11 +42,6 @@ export function createWindow(onClosed: () => void) {
     settings = buildWindowSettings(settings, win);
   });
   win.on("close", (event) => {
-    if (getAppState() === AppState.CSA_GAME) {
-      event.preventDefault();
-      sendError(new Error(t.youCanNotCloseAppWhileCSAOnlineGame));
-      return;
-    }
     if (!isClosable()) {
       event.preventDefault();
       onClose();
