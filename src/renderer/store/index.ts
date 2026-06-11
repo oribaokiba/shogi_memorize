@@ -7,13 +7,11 @@ import {
   exportKIF,
   importKIF,
   RecordMetadataKey,
-  ImmutablePosition,
   DoMoveOption,
   SpecialMoveType,
   exportKI2,
   RecordFormatType,
   exportJKFString,
-  Position,
   exportBOD,
   exportCSA,
   InitialPositionType,
@@ -46,7 +44,13 @@ import { Confirmation, useConfirmationStore } from "./confirm.js";
 import { LayoutProfile } from "@/common/settings/layout.js";
 import { clearURLParams, loadRecordForWebApp, saveRecordForWebApp } from "./webapp.js";
 import { ListItem } from "@/common/message.js";
+import {
+  loadMemorizeCollection,
+  saveMemorizeCollection,
+  type MemorizeCollection,
+} from "@/common/memorize/index.js";
 
+// 旧形式のメモライズ問題（互換性維持）
 export type MemorizeProblem = {
   name: string;
   moves: Move[];
@@ -61,6 +65,9 @@ class Store {
   private _memorizeStep = 0;
   private _memorizePlayerColor?: Color;
   private _isMemorizeProcessing = false;
+  // 新しい問題集コレクション管理
+  private _memorizeCollection: MemorizeCollection | null = null;
+  private _memorizeCollectionPath: string | null = null;
   private _customLayout: LayoutProfile | null = null;
   private _isAppSettingsDialogVisible = false;
   private _reactive: UnwrapNestedRefs<Store>;
@@ -765,6 +772,158 @@ class Store {
     return this._isMemorizeProcessing;
   }
 
+  // === 新しい問題集コレクション管理 ===
+
+  get memorizeCollection(): MemorizeCollection | null {
+    return this._memorizeCollection;
+  }
+
+  get memorizeCollectionPath(): string | null {
+    return this._memorizeCollectionPath;
+  }
+
+  /**
+   * 新しい問題集コレクションを作成する
+   */
+  newMemorizeCollection(title: string): void {
+    this._memorizeCollection = {
+      version: 1,
+      title,
+      problems: [],
+    };
+    this._memorizeCollectionPath = null;
+    this._memorizeProblems = [];
+    this._currentProblemIndex = -1;
+    this._memorizeStep = 0;
+    this._appState = AppState.NORMAL;
+  }
+
+  /**
+   * YAML文字列から問題集を読み込む
+   */
+  loadMemorizeCollectionFromYAML(yaml: string): Error | undefined {
+    const result = loadMemorizeCollection(yaml);
+    if (result instanceof Error) {
+      return result;
+    }
+    this._memorizeCollection = result;
+    this._memorizeCollectionPath = null;
+    this._memorizeProblems = [];
+    this._currentProblemIndex = -1;
+    this._memorizeStep = 0;
+    this._appState = AppState.NORMAL;
+    return undefined;
+  }
+
+  /**
+   * 現在のコレクションをYAML文字列にシリアライズする
+   */
+  saveMemorizeCollectionToYAML(): string | Error {
+    if (!this._memorizeCollection) {
+      return new Error("問題集が読み込まれていません");
+    }
+    return saveMemorizeCollection(this._memorizeCollection);
+  }
+
+  /**
+   * 現在の棋譜の全末端ノードを問題としてコレクションに追加する
+   */
+  importCurrentRecordAsProblems(): number {
+    if (!this._memorizeCollection) {
+      return 0;
+    }
+    const sfen = this.recordManager.record.initialPosition.sfen;
+    const problems = this.extractNewProblems(this.recordManager.record, sfen);
+    this._memorizeCollection.problems.push(...problems);
+    return problems.length;
+  }
+
+  /**
+   * 現在の棋譜ツリーから新しい形式の問題を抽出する
+   */
+  private extractNewProblems(
+    record: ImmutableRecord,
+    sfen: string,
+  ): import("@/common/memorize/index.js").MemorizeProblem[] {
+    const problems: import("@/common/memorize/index.js").MemorizeProblem[] = [];
+
+    const dfs = (node: ImmutableNode, pathUSI: string[]) => {
+      const currentPath = [...pathUSI];
+      if (node.move && node.move instanceof Move) {
+        currentPath.push(node.move.usi);
+      }
+
+      const children: ImmutableNode[] = [];
+      let child = node.next;
+      while (child) {
+        children.push(child);
+        child = child.branch;
+      }
+
+      if (children.length === 0) {
+        if (currentPath.length > 0) {
+          const pColor = currentPath.length % 2 === 0 ? Color.WHITE : Color.BLACK;
+          problems.push({
+            name: `${this._memorizeCollection!.problems.length + problems.length + 1}. 問題`,
+            sfen,
+            playerColor: pColor,
+            moves: currentPath,
+            hints: undefined,
+          });
+        }
+        return;
+      }
+
+      children.forEach((child) => {
+        dfs(child, currentPath);
+      });
+    };
+
+    dfs(record.first, []);
+    return problems;
+  }
+
+  /**
+   * 問題集に新しい問題を追加する
+   */
+  addProblemToCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
+    if (!this._memorizeCollection) {
+      return;
+    }
+    this._memorizeCollection.problems.push(problem);
+  }
+
+  /**
+   * 問題集から問題を削除する
+   */
+  removeProblemFromCollection(index: number): void {
+    if (
+      !this._memorizeCollection ||
+      index < 0 ||
+      index >= this._memorizeCollection.problems.length
+    ) {
+      return;
+    }
+    this._memorizeCollection.problems.splice(index, 1);
+  }
+
+  /**
+   * 問題集の問題を更新する
+   */
+  updateProblemInCollection(
+    index: number,
+    problem: import("@/common/memorize/index.js").MemorizeProblem,
+  ): void {
+    if (
+      !this._memorizeCollection ||
+      index < 0 ||
+      index >= this._memorizeCollection.problems.length
+    ) {
+      return;
+    }
+    this._memorizeCollection.problems[index] = problem;
+  }
+
   importKIFForMemorize(data: string): Error | undefined {
     const recordOrError = importKIF(data);
     if (recordOrError instanceof Error) {
@@ -853,7 +1012,7 @@ class Store {
       try {
         playPieceBeat(useAppSettings().pieceVolume);
         // 不正解時のフィードバック
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
