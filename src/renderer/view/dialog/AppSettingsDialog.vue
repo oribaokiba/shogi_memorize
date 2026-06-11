@@ -524,264 +524,6 @@
         />
       </div>
     </div>
-    <!-- 定跡 -->
-    <div
-      v-if="!isMobileWebApp()"
-      v-show="selectedTab === 'book'"
-      class="form-group scroll settings"
-    >
-      <!-- On-the-fly 閾値 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.onTheFlyThreshold }}</div>
-        <table class="subgroup">
-          <tbody>
-            <tr>
-              <td>Yane2016</td>
-              <td>
-                <input
-                  v-model.number="update.yaneBookOnTheFlyThresholdMB"
-                  type="number"
-                  max="512"
-                  min="0"
-                />
-                <div class="form-item-small-label">MB ({{ t.between(0, 512) }})</div>
-              </td>
-            </tr>
-            <tr>
-              <td>Apery</td>
-              <td>
-                <input
-                  v-model.number="update.aperyBookOnTheFlyThresholdMB"
-                  type="number"
-                  max="512"
-                  min="0"
-                />
-                <div class="form-item-small-label">MB ({{ t.between(0, 512) }})</div>
-              </td>
-            </tr>
-            <tr>
-              <td>SBK</td>
-              <td>
-                <input
-                  v-model.number="update.sbkOnTheFlyThresholdMB"
-                  type="number"
-                  max="128"
-                  min="0"
-                />
-                <div class="form-item-small-label">MB ({{ t.between(0, 128) }})</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <!-- USI プロトコル -->
-    <div v-if="!isMobileWebApp()" v-show="selectedTab === 'usi'" class="form-group scroll settings">
-      <!-- オプション名を翻訳 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">
-          {{ t.translateOptionName }}
-        </div>
-        <ToggleButton v-model:value="update.translateEngineOptionName" />
-        <div class="form-item-small-label">({{ t.functionalOnJapaneseOnly }})</div>
-      </div>
-      <!-- 最大起動待ち時間 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">
-          {{ t.maxStartupTime }}
-        </div>
-        <input v-model.number="update.engineTimeoutSeconds" type="number" max="300" min="1" />
-        <div class="form-item-small-label">{{ t.secondsSuffix }} ({{ t.between(1, 300) }})</div>
-      </div>
-      <!-- ノード数表記 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.nodeCountFormat }}</div>
-        <HorizontalSelector
-          v-model:value="update.nodeCountFormat"
-          class="selector"
-          :items="[
-            { label: t.plainNumber, value: NodeCountFormat.PLAIN },
-            { label: t.commaSeparated, value: NodeCountFormat.COMMA_SEPARATED },
-            { label: t.compact, value: NodeCountFormat.COMPACT },
-            { label: '日本語', value: NodeCountFormat.JAPANESE },
-          ]"
-        />
-      </div>
-    </div>
-    <!-- 評価値・期待勝率・読み筋 -->
-    <div
-      v-if="!isMobileWebApp()"
-      v-show="selectedTab === 'evaluation'"
-      class="form-group scroll settings"
-    >
-      <!-- 評価値の符号 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">
-          {{ t.signOfEvaluation }}
-        </div>
-        <HorizontalSelector
-          v-model:value="update.evaluationViewFrom"
-          class="selector"
-          :items="[
-            { label: t.swapEachTurnChange, value: EvaluationViewFrom.EACH },
-            {
-              label: t.alwaysSenteIsPositive,
-              value: EvaluationViewFrom.BLACK,
-            },
-          ]"
-        />
-      </div>
-      <!-- 矢印の表示本数 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">
-          {{ t.maxArrows }}
-        </div>
-        <input v-model.number="update.maxArrowsPerEngine" type="number" max="10" min="0" />
-        <div class="form-item-small-label">({{ t.between(0, 10) }})</div>
-      </div>
-      <!-- 矢印の評価値範囲 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.arrowScoreDiffRange }}</div>
-        <input v-model.number="update.arrowScoreDiffRange" type="number" min="0" />
-      </div>
-      <!-- 矢印に評価値を表示 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.showArrowScore }}</div>
-        <ToggleButton v-model:value="update.showArrowScore" />
-      </div>
-      <!-- 勝率換算係数 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">
-          {{ t.winRateCoefficient }}
-        </div>
-        <input v-model.number="update.coefficientInSigmoid" type="number" max="10000" min="1" />
-        <div class="form-item-small-label">({{ t.recommended }}: {{ t.between(600, 1500) }})</div>
-      </div>
-      <!-- 緩手の閾値 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.inaccuracyThreshold }}</div>
-        <input v-model.number="update.badMoveLevelThreshold1" type="number" max="100" min="0" />
-        <div class="form-item-small-label">%</div>
-      </div>
-      <!-- 疑問手の閾値 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.dubiousThreshold }}</div>
-        <input v-model.number="update.badMoveLevelThreshold2" type="number" max="100" min="0" />
-        <div class="form-item-small-label">%</div>
-      </div>
-      <!-- 悪手の閾値 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.mistakeThreshold }}</div>
-        <input v-model.number="update.badMoveLevelThreshold3" type="number" max="100" min="0" />
-        <div class="form-item-small-label">%</div>
-      </div>
-      <!-- 大悪手の閾値 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.blunderThreshold }}</div>
-        <input v-model.number="update.badMoveLevelThreshold4" type="number" max="100" min="0" />
-        <div class="form-item-small-label">%</div>
-      </div>
-      <!-- PV表示手数 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.maxPVLength }}</div>
-        <input v-model.number="update.maxPVTextLength" type="number" max="100" min="5" />
-        <div class="form-item-small-label">({{ t.between(5, 100) }})</div>
-        <button class="thin auxiliary" @click="whatIsMaxPVLengthSetting">
-          <Icon :icon="IconType.HELP" />
-        </button>
-      </div>
-      <!-- コメントの形式 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.commentFormat }}</div>
-        <HorizontalSelector
-          v-model:value="update.searchCommentFormat"
-          class="selector"
-          :items="[
-            { label: t.shogiHome, value: SearchCommentFormat.SHOGIHOME },
-            { label: 'Floodgate', value: SearchCommentFormat.FLOODGATE },
-            { label: 'CSA V3', value: SearchCommentFormat.CSA3 },
-            { label: 'ShogiGUI', value: SearchCommentFormat.SHOGIGUI },
-          ]"
-        />
-      </div>
-    </div>
-    <!-- アプリバージョン -->
-    <div
-      v-if="!isMobileWebApp()"
-      v-show="selectedTab === 'version'"
-      class="form-group scroll settings"
-    >
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.installed }}</div>
-        {{ appInfo.appVersion }} ({{ appInfo.buildVersion }})
-      </div>
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.latest }}</div>
-        {{ versionStatus.knownReleases?.latest.version ?? t.unknown }}
-      </div>
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.stable }}</div>
-        {{ versionStatus.knownReleases?.stable.version ?? t.unknown }}
-      </div>
-    </div>
-    <!-- 開発者向け -->
-    <div
-      v-if="!isMobileWebApp()"
-      v-show="selectedTab === 'developer'"
-      class="form-group scroll settings"
-    >
-      <div class="form-group warning">
-        <div v-if="!isNative()" class="note">
-          {{ t.inBrowserLogsOutputToConsoleAndIgnoreThisSetting }}
-        </div>
-        <div v-if="isNative()" class="note">
-          {{ t.shouldRestartToApplyLogSettings }}
-        </div>
-        <div v-if="isNative()" class="note">
-          {{ t.canOpenLogDirectoryFromMenu }}
-        </div>
-        <div v-if="isNative()" class="note">
-          {{ t.hasNoOldLogCleanUpFeature }}
-        </div>
-      </div>
-      <!-- アプリログを出力 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.enableAppLog }}</div>
-        <ToggleButton v-model:value="update.enableAppLog" />
-      </div>
-      <!-- USI通信ログを出力 -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.enableUSILog }}</div>
-        <ToggleButton v-model:value="update.enableUSILog" />
-      </div>
-      <!-- ログレベル -->
-      <div class="form-item">
-        <div class="form-item-label-wide">{{ t.logLevel }}</div>
-        <HorizontalSelector
-          v-model:value="update.logLevel"
-          class="selector"
-          :items="[
-            { label: 'DEBUG', value: LogLevel.DEBUG },
-            { label: 'INFO', value: LogLevel.INFO },
-            { label: 'WARN', value: LogLevel.WARN },
-            { label: 'ERROR', value: LogLevel.ERROR },
-          ]"
-        />
-      </div>
-      <div v-if="isNative()" class="form-group warning">
-        <div class="note">
-          {{ t.shouldRestartToApplyLowLevelSettings }}
-        </div>
-      </div>
-      <!-- ハードウェアアクセラレーション無効化 -->
-      <div v-if="isNative()" class="form-item">
-        <div class="form-item-label-wide">Enable HWA</div>
-        <ToggleButton v-model:value="update.enableHardwareAcceleration" />
-        <button class="thin auxiliary" @click="aboutDisableHWASetting">
-          <Icon :icon="IconType.HELP" />
-        </button>
-      </div>
-    </div>
     <div class="main-buttons">
       <button data-hotkey="Enter" autofocus @click="saveAndClose()">
         {{ t.saveAndClose }}
@@ -806,13 +548,11 @@ import {
   PromotionSelectorStyle,
   RightSideControlType,
   TabPaneType,
-  EvaluationViewFrom,
   Thema,
   BackgroundImageType,
   TextDecodingRule,
   ClockSoundTarget,
   AppSettingsUpdate,
-  NodeCountFormat,
   RecordShortcutKeys,
 } from "@/common/settings/app";
 import ImageSelector from "@/renderer/view/dialog/ImageSelector.vue";
@@ -821,21 +561,14 @@ import { useStore } from "@/renderer/store";
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import api, { appInfo, isMobileWebApp, isNative } from "@/renderer/ipc/api";
 import { useAppSettings } from "@/renderer/store/settings";
-import { LogLevel } from "@/common/log";
 import HorizontalSelector from "@/renderer/view/primitive/HorizontalSelector.vue";
 import { RecordFileFormat } from "@/common/file/record";
 import { IconType } from "@/renderer/assets/icons";
 import Icon from "@/renderer/view/primitive/Icon.vue";
-import { VersionStatus } from "@/common/version";
-import {
-  disableHWASettingWikiPageURL,
-  fileNameTemplateWikiPageURL,
-  maxPVLengthSettingWikiPageURL,
-} from "@/common/links/github";
+import { fileNameTemplateWikiPageURL } from "@/common/links/github";
 import { useErrorStore } from "@/renderer/store/error";
 import { useBusyState } from "@/renderer/store/busy";
 import { BoardLayoutType } from "@/common/settings/layout";
-import { SearchCommentFormat } from "@/common/settings/comment";
 import DialogFrame from "./DialogFrame.vue";
 
 const store = useStore();
@@ -845,15 +578,6 @@ const tabItems = computed(() => [
   { label: t.sounds, value: "sounds" },
   { label: t.controls, value: "controls" },
   { label: t.record, value: "record" },
-  ...(!isMobileWebApp()
-    ? [
-        { label: t.book, value: "book" },
-        { label: t.usiProtocol, value: "usi" },
-        { label: t.evaluationAndEstimatedWinRateAndPV, value: "evaluation" },
-        { label: t.appVersion, value: "version" },
-        { label: t.forDevelopers, value: "developer" },
-      ]
-    : []),
 ]);
 const busyState = useBusyState();
 const org = useAppSettings();
@@ -898,29 +622,7 @@ const update = ref({
   enableUSIFileSpecialMoves: org.enableUSIFileSpecialMoves,
   showPasteDialog: org.showPasteDialog,
   liveDuplicatePositionDetection: org.liveDuplicatePositionDetection,
-  yaneBookOnTheFlyThresholdMB: org.yaneBookOnTheFlyThresholdMB,
-  aperyBookOnTheFlyThresholdMB: org.aperyBookOnTheFlyThresholdMB,
-  sbkOnTheFlyThresholdMB: org.sbkOnTheFlyThresholdMB,
-  translateEngineOptionName: org.translateEngineOptionName,
-  engineTimeoutSeconds: org.engineTimeoutSeconds,
-  nodeCountFormat: org.nodeCountFormat,
-  evaluationViewFrom: org.evaluationViewFrom,
-  maxArrowsPerEngine: org.maxArrowsPerEngine,
-  arrowScoreDiffRange: org.arrowScoreDiffRange,
-  showArrowScore: org.showArrowScore,
-  coefficientInSigmoid: org.coefficientInSigmoid,
-  badMoveLevelThreshold1: org.badMoveLevelThreshold1,
-  badMoveLevelThreshold2: org.badMoveLevelThreshold2,
-  badMoveLevelThreshold3: org.badMoveLevelThreshold3,
-  badMoveLevelThreshold4: org.badMoveLevelThreshold4,
-  maxPVTextLength: org.maxPVTextLength,
-  searchCommentFormat: org.searchCommentFormat,
-  enableAppLog: org.enableAppLog,
-  enableUSILog: org.enableUSILog,
-  logLevel: org.logLevel,
-  enableHardwareAcceleration: org.enableHardwareAcceleration,
 });
-const versionStatus = ref({} as VersionStatus);
 
 function reverseFormat(source: AppSettingsUpdate): AppSettingsUpdate {
   return {
@@ -935,9 +637,6 @@ function reverseFormat(source: AppSettingsUpdate): AppSettingsUpdate {
 }
 
 onMounted(() => {
-  api.getVersionStatus().then((status) => {
-    versionStatus.value = status;
-  });
   watch(
     update,
     (value) => {
@@ -971,14 +670,6 @@ const saveAndClose = async () => {
 
 const howToWriteFileNameTemplate = () => {
   api.openWebBrowser(fileNameTemplateWikiPageURL);
-};
-
-const whatIsMaxPVLengthSetting = () => {
-  api.openWebBrowser(maxPVLengthSettingWikiPageURL);
-};
-
-const aboutDisableHWASetting = () => {
-  api.openWebBrowser(disableHWASettingWikiPageURL);
 };
 
 const cancel = () => {
