@@ -48,7 +48,6 @@ import { useBookStore } from "@/renderer/store/book";
 import { computed, ref } from "vue";
 import BookMoveDialog, { Result as EditResult } from "@/renderer/view/dialog/BookMoveDialog.vue";
 import { formatMove, Move } from "tsshogi";
-import { humanPlayer } from "@/renderer/players/human";
 import { t } from "@/common/i18n";
 import { useConfirmationStore } from "@/renderer/store/confirm";
 import BookView from "@/renderer/view/primitive/BookView.vue";
@@ -104,11 +103,7 @@ const onUpdateFlippedBook = (value: boolean) => {
 };
 
 const playBookMove = (move: Move) => {
-  if (store.appState === AppState.GAME || store.appState === AppState.CSA_GAME) {
-    humanPlayer.doMove(move);
-  } else {
-    store.doMove(move);
-  }
+  store.doMove(move);
 };
 
 const editBookMove = (move: Move) => {

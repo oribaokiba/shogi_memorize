@@ -27,9 +27,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
-        prompt: resolve(import.meta.dirname, "prompt.html"),
-        monitor: resolve(import.meta.dirname, "monitor.html"),
-        "layout-manager": resolve(import.meta.dirname, "layout-manager.html"),
       },
     },
     outDir: resolve(import.meta.dirname, "dist"),

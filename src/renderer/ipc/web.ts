@@ -4,7 +4,7 @@ import { LogLevel } from "@/common/log.js";
 import { Bridge } from "@/renderer/ipc/bridge.js";
 import { getEmptyHistory } from "@/common/file/history.js";
 import { emptyLayoutProfileList } from "@/common/settings/layout.js";
-import { BookFormat } from "@/common/book.js";
+import { VersionStatus } from "@/common/version.js";
 
 enum STORAGE_KEY {
   APP_SETTINGS = "appSetting",
@@ -129,8 +129,8 @@ export const webAPI: Bridge = {
   clearBook(): Promise<void> {
     return Promise.resolve();
   },
-  getBookFormat(): Promise<BookFormat> {
-    return Promise.resolve(BookFormat.SBK);
+  getBookFormat(): Promise<string> {
+    return Promise.resolve("sbk");
   },
   searchBookMoves(): Promise<string> {
     return Promise.resolve("[]");
@@ -212,9 +212,7 @@ export const webAPI: Bridge = {
   getVersionStatus(): Promise<string> {
     return Promise.resolve(
       JSON.stringify({
-        status: "unknown",
-        currentVersion: "",
-        latestVersion: "",
+        knownReleases: undefined,
       } as VersionStatus),
     );
   },

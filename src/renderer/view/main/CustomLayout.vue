@@ -27,28 +27,6 @@
         :show-branches="!!c.branches"
       />
       <BookPanel v-else-if="c.type === 'Book'" class="full" />
-      <div v-else-if="c.type === 'Analytics'" class="full tab-content">
-        <EngineAnalytics
-          :size="c.size"
-          :history-mode="!!c.historyMode"
-          :show-header="!!c.showHeader"
-          :show-time-column="!!c.showTimeColumn"
-          :show-multi-pv-column="!!c.showMultiPvColumn"
-          :show-depth-column="!!c.showDepthColumn"
-          :show-nodes-column="!!c.showNodesColumn"
-          :show-score-column="!!c.showScoreColumn"
-          :show-play-button="!!c.showPlayButton"
-          :show-suggestions-count="!!c.showSuggestionsCount"
-        />
-      </div>
-      <EvaluationChart
-        v-else-if="c.type === 'Chart'"
-        :size="c.size"
-        :type="c.chartType"
-        :thema="appSettings.thema"
-        :coefficient-in-sigmoid="appSettings.coefficientInSigmoid"
-        :show-legend="!!c.showLegend"
-      />
       <RecordComment
         v-else-if="c.type === 'Comment'"
         class="full"
@@ -105,8 +83,6 @@ import { Rect, RectSize } from "@/common/assets/geometry";
 import { LeftSideControlType, RightSideControlType } from "@/common/settings/app";
 import BoardPane from "./BoardPane.vue";
 import RecordPane from "./RecordPane.vue";
-import EngineAnalytics from "@/renderer/view/tab/EngineAnalytics.vue";
-import EvaluationChart from "@/renderer/view/tab/EvaluationChart.vue";
 import ElapsedTimeChart from "@/renderer/view/primitive/ElapsedTimeChart.vue";
 import ControlPane, { ControlGroup } from "./ControlPane.vue";
 import { useAppSettings } from "@/renderer/store/settings";

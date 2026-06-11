@@ -21,39 +21,24 @@
       :max-size="maxSize"
       :position="store.record.position"
       :last-move="lastMove"
-      :candidates="store.candidates"
+      :candidates="[]"
       :flip="appSettings.boardFlipping"
-      :hide-clock="store.appState !== AppState.GAME && store.appState !== AppState.CSA_GAME"
+      :hide-clock="true"
       :mobile="isMobileWebApp()"
       :allow-move="store.isMovableByUser"
       :allow-edit="store.appState === AppState.POSITION_EDITING"
       :enable-drag-and-drop="appSettings.enableDragAndDrop"
       :black-player-name="blackPlayerName"
       :white-player-name="whitePlayerName"
-      :black-player-time="clock?.black.time"
-      :black-player-byoyomi="clock?.black.byoyomi"
-      :white-player-time="clock?.white.time"
-      :white-player-byoyomi="clock?.white.byoyomi"
+      :black-player-time="0"
+      :black-player-byoyomi="0"
+      :white-player-time="0"
+      :white-player-byoyomi="0"
       :drop-shadows="!isMobileWebApp()"
       @resize="onResize"
       @move="onMove"
       @edit="onEdit"
-    >
-      <template #right-control>
-        <ControlPane
-          v-show="rightControlType !== RightSideControlType.NONE"
-          class="full"
-          :group="ControlGroup.Group1"
-        />
-      </template>
-      <template #left-control>
-        <ControlPane
-          v-show="leftControlType !== LeftSideControlType.NONE"
-          class="full"
-          :group="ControlGroup.Group2"
-        />
-      </template>
-    </BoardView>
+    />
   </div>
 </template>
 
@@ -64,10 +49,7 @@ import BoardView from "@/renderer/view/primitive/BoardView.vue";
 import { Move, PositionChange, getBlackPlayerName, getWhitePlayerName } from "tsshogi";
 import { RectSize } from "@/common/assets/geometry.js";
 import { useStore } from "@/renderer/store";
-import ControlPane, { ControlGroup } from "@/renderer/view/main/ControlPane.vue";
 import { AppState } from "@/common/control/state.js";
-import { humanPlayer } from "@/renderer/players/human";
-import { CSAGameState } from "@/renderer/game/csa";
 import { useAppSettings } from "@/renderer/store/settings";
 import {
   RightSideControlType,
@@ -112,11 +94,7 @@ const onResize = (size: RectSize) => {
 };
 
 const onMove = (move: Move) => {
-  if (store.appState === AppState.GAME || store.appState === AppState.CSA_GAME) {
-    humanPlayer.doMove(move);
-  } else {
-    store.doMove(move);
-  }
+  store.doMove(move);
 };
 
 const onEdit = (change: PositionChange) => {
@@ -127,23 +105,6 @@ const lastMove = computed(() => {
   const move = store.record.current.move;
   return move instanceof Move ? move : undefined;
 });
-
 const blackPlayerName = computed(() => getBlackPlayerName(store.record.metadata) || t.sente);
 const whitePlayerName = computed(() => getWhitePlayerName(store.record.metadata) || t.gote);
-
-const clock = computed(() => {
-  if (store.appState === AppState.GAME || store.csaGameState === CSAGameState.GAME) {
-    return {
-      black: {
-        time: store.blackTime,
-        byoyomi: store.blackByoyomi,
-      },
-      white: {
-        time: store.whiteTime,
-        byoyomi: store.whiteByoyomi,
-      },
-    };
-  }
-  return undefined;
-});
 </script>

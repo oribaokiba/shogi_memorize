@@ -1,5 +1,4 @@
 import { detectRecordFormat, InitialPositionType, Record, RecordFormatType } from "tsshogi";
-import { PlayerSettings, defaultPlayerSettings, validatePlayerSettings } from "./player.js";
 import { t } from "@/common/i18n/index.js";
 import * as uri from "@/common/uri.js";
 import { removeLastSlash } from "@/common/helpers/path.js";
@@ -19,11 +18,8 @@ export function defaultTimeLimitSettings(): TimeLimitSettings {
   };
 }
 
-export type SingleGameStartPositionType =
-  | InitialPositionType
-  | "current" /* 現局面 */
-  | "sfen" /* SFEN */;
-export type GameStartPositionType = SingleGameStartPositionType | "list" /* 局面集 */;
+export type SingleGameStartPositionType = InitialPositionType | "current" | "sfen";
+export type GameStartPositionType = SingleGameStartPositionType | "list";
 
 export enum JishogiRule {
   NONE = "none",
@@ -39,7 +35,7 @@ export type SingleGameSettings = {
   white: PlayerSettings;
   timeLimit: TimeLimitSettings;
   whiteTimeLimit?: TimeLimitSettings;
-  startPosition: SingleGameStartPositionType; // v1.21.0 から undefined を廃止
+  startPosition: SingleGameStartPositionType;
   startPositionSFEN: string;
   enableEngineTimeout: boolean;
   humanIsFront: boolean;
@@ -70,7 +66,7 @@ export function defaultSPRTSettings(): SPRTSettings {
 }
 
 export type LinearGameSettings = Omit<SingleGameSettings, "startPosition"> & {
-  startPosition: GameStartPositionType; // v1.21.0 から undefined を廃止
+  startPosition: GameStartPositionType;
   startPositionListFile: string;
   startPositionListOrder: "sequential" | "shuffle";
   startPositionListPly?: number;
@@ -89,7 +85,7 @@ export function defaultGameSettings(opts?: { autoSaveDirectory?: string }): Game
     black: defaultPlayerSettings(),
     white: defaultPlayerSettings(),
     timeLimit: defaultTimeLimitSettings(),
-    startPosition: InitialPositionType.STANDARD, // v1.21.0 から平手初期配置をデフォルトに変更
+    startPosition: InitialPositionType.STANDARD,
     startPositionSFEN: "",
     startPositionListFile: "",
     startPositionListOrder: "sequential",
@@ -109,6 +105,10 @@ export function defaultGameSettings(opts?: { autoSaveDirectory?: string }): Game
   };
 }
 
+function defaultPlayerSettings() {
+  return { uri: "", name: "", usi: "" };
+}
+
 export function normalizeGameSettings(
   settings: GameSettings,
   opts?: { autoSaveDirectory?: string },
@@ -116,7 +116,6 @@ export function normalizeGameSettings(
   const result = {
     ...defaultGameSettings(opts),
     ...{
-      // v1.21.0 までは startPosition を省略可能で、それが現在の current に相当していた。
       startPosition: "current",
     },
     ...settings,
@@ -144,30 +143,10 @@ export function normalizeGameSettings(
 }
 
 export function validateGameSettings(gameSettings: GameSettings): Error | undefined {
-  const playerError =
-    validatePlayerSettings(gameSettings.black) || validatePlayerSettings(gameSettings.white);
-  if (playerError) {
-    return playerError;
-  }
-
   if (gameSettings.timeLimit.timeSeconds === 0 && gameSettings.timeLimit.byoyomi === 0) {
     return new Error(t.bothTimeLimitAndByoyomiAreNotSet);
   }
   if (gameSettings.timeLimit.byoyomi !== 0 && gameSettings.timeLimit.increment !== 0) {
-    return new Error(t.canNotUseByoyomiWithFischer);
-  }
-  if (
-    gameSettings.whiteTimeLimit &&
-    gameSettings.whiteTimeLimit.timeSeconds === 0 &&
-    gameSettings.whiteTimeLimit.byoyomi === 0
-  ) {
-    return new Error(t.bothTimeLimitAndByoyomiAreNotSet);
-  }
-  if (
-    gameSettings.whiteTimeLimit &&
-    gameSettings.whiteTimeLimit.byoyomi !== 0 &&
-    gameSettings.whiteTimeLimit.increment !== 0
-  ) {
     return new Error(t.canNotUseByoyomiWithFischer);
   }
   if (gameSettings.repeat < 1) {
@@ -243,3 +222,9 @@ export function validateGameSettingsForWeb(gameSettings: GameSettings): Error | 
   }
   return;
 }
+
+type PlayerSettings = {
+  uri: string;
+  name: string;
+  usi: string;
+};

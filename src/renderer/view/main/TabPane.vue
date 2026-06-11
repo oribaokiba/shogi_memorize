@@ -24,43 +24,7 @@
           :size="contentSize"
         />
         <RecordComment v-if="activeTab === Tab.COMMENT" class="full tab-content" />
-        <EngineAnalytics
-          v-if="activeTab === Tab.SEARCH"
-          class="full tab-content"
-          :size="contentSize"
-          :history-mode="true"
-        />
-        <EngineAnalytics
-          v-if="activeTab === Tab.PV"
-          class="full tab-content"
-          :size="contentSize"
-          :history-mode="false"
-        />
-        <EvaluationChart
-          v-if="activeTab === Tab.CHART"
-          class="full tab-content"
-          :size="contentSize"
-          :type="EvaluationChartType.RAW"
-          :thema="appSettings.thema"
-          :coefficient-in-sigmoid="appSettings.coefficientInSigmoid"
-        />
-        <EvaluationChart
-          v-if="activeTab === Tab.PERCENTAGE_CHART"
-          class="full tab-content"
-          :size="contentSize"
-          :type="EvaluationChartType.WIN_RATE"
-          :thema="appSettings.thema"
-          :coefficient-in-sigmoid="appSettings.coefficientInSigmoid"
-        />
-        <MonitorView
-          v-if="activeTab === Tab.MONITOR"
-          class="full tab-content"
-          :size="contentSize"
-        />
-        <MemorizePanel
-          v-if="activeTab === Tab.MEMORIZE"
-          class="full tab-content"
-        />
+        <MemorizePanel v-if="activeTab === Tab.MEMORIZE" class="full tab-content" />
       </div>
     </div>
   </div>
@@ -73,18 +37,13 @@ export const headerHeight = 30;
 <script setup lang="ts">
 import { PropType, computed } from "vue";
 import RecordComment from "@/renderer/view/tab/RecordComment.vue";
-import EngineAnalytics from "@/renderer/view/tab/EngineAnalytics.vue";
-import EvaluationChart from "@/renderer/view/tab/EvaluationChart.vue";
 import RecordInfo from "@/renderer/view/tab/RecordInfo.vue";
-import MonitorView from "@/renderer/view/monitor/MonitorView.vue";
 import MemorizePanel from "@/renderer/view/tab/MemorizePanel.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { Tab } from "@/common/settings/app";
-import { EvaluationChartType } from "@/common/settings/layout";
 import { IconType } from "@/renderer/assets/icons";
 import { t } from "@/common/i18n";
-import { useAppSettings } from "@/renderer/store/settings";
 
 const props = defineProps({
   size: {
@@ -110,7 +69,6 @@ const emit = defineEmits<{
   onMinimize: [];
 }>();
 
-const appSettings = useAppSettings();
 const changeSelect = (tab: Tab) => emit("onChangeTab", tab);
 const minimize = () => emit("onMinimize");
 const contentSize = computed(() => props.size.reduce(new RectSize(0, headerHeight)));
@@ -124,33 +82,9 @@ const tabs = {
     title: t.comments,
     icon: IconType.COMMENT,
   },
-  [Tab.SEARCH]: {
-    title: t.searchLog,
-    icon: IconType.BRAIN,
-  },
-  [Tab.PV]: {
-    title: t.pv,
-    icon: IconType.PV,
-  },
-  [Tab.CHART]: {
-    title: t.evaluation,
-    icon: IconType.CHART,
-  },
-  [Tab.PERCENTAGE_CHART]: {
-    title: t.estimatedWinRate,
-    icon: IconType.PERCENT,
-  },
-  [Tab.MONITOR]: {
-    title: t.monitor,
-    icon: IconType.MONITOR,
-  },
   [Tab.MEMORIZE]: {
     title: "定跡暗記",
     icon: IconType.QUIZ,
-  },
-  [Tab.INVISIBLE]: {
-    title: t.hideTabView,
-    icon: IconType.ARROW_DROP,
   },
 };
 </script>

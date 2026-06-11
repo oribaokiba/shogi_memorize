@@ -43,10 +43,11 @@ import {
   exportRecordAsBuffer,
   importRecordFromBuffer,
 } from "@/common/file/record.js";
-import { SCORE_MATE_INFINITE } from "@/common/game/usi.js";
 import api from "@/renderer/ipc/api.js";
 import { LogLevel } from "@/common/log.js";
 import { secondsToMMSS } from "@/common/helpers/time.js";
+
+export const SCORE_MATE_INFINITE = 100000000;
 
 export enum SearchInfoSenderType {
   PLAYER,
