@@ -1626,7 +1626,11 @@ class Store {
     }
   }
 
-  doMemorizeMove(move: Move): void {
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async doMemorizeMove(move: Move): Promise<void> {
     const problem = this.currentProblem;
     if (!problem || this._isMemorizeProcessing) {
       return;
@@ -1649,15 +1653,21 @@ class Store {
 
       if (this._memorizeStep >= problem.moves.length) {
         useMessageStore().enqueue({ text: "正解です！クリアしました！" });
-        // setTimeout なし、次の問題への遷移はユーザーが「次の問題へ」ボタンを押すまで待つ
         return;
       }
 
-      // 次の手が相手の手番であれば即座に自動進行（setTimeout不使用で競合を防止）
+      // 次の手が相手の手番であれば、少し待ってから自動進行
       const actualPlayerColor =
         this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
       const nextExpectedMove = problem.moves[this._memorizeStep];
       if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
+        this._isMemorizeProcessing = true;
+        await this.sleep(400);
+        // セッションが継続中か確認（解答終了などで中断された場合は何もしない）
+        if (this.appState !== AppState.MEMORIZE || !this._isMemorizeProcessing) {
+          this._isMemorizeProcessing = false;
+          return;
+        }
         this.recordManager.appendMove({ move: nextExpectedMove });
         try {
           playPieceBeat(useAppSettings().pieceVolume);
@@ -1665,10 +1675,10 @@ class Store {
           useErrorStore().add(e);
         }
         this._memorizeStep++;
+        this._isMemorizeProcessing = false;
 
         if (this._memorizeStep >= problem.moves.length) {
           useMessageStore().enqueue({ text: "正解です！クリアしました！" });
-          // setTimeout なし、次の問題への遷移はユーザーが「次の問題へ」ボタンを押すまで待つ
         }
       }
     } else {
@@ -1680,7 +1690,7 @@ class Store {
     }
   }
 
-  giveUpMemorize(): void {
+  async giveUpMemorize(): Promise<void> {
     const problem = this.currentProblem;
     if (this.appState !== AppState.MEMORIZE || !problem || this._isMemorizeProcessing) {
       return;
@@ -1703,11 +1713,18 @@ class Store {
       return;
     }
 
-    // 次の手が相手の手番であれば即座に自動進行
+    // 次の手が相手の手番であれば、少し待ってから自動進行
     const actualPlayerColor =
       this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
     const nextExpectedMove = problem.moves[this._memorizeStep];
     if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
+      this._isMemorizeProcessing = true;
+      await this.sleep(400);
+      // セッションが継続中か確認
+      if (this.appState !== AppState.MEMORIZE || !this._isMemorizeProcessing) {
+        this._isMemorizeProcessing = false;
+        return;
+      }
       this.recordManager.appendMove({ move: nextExpectedMove });
       try {
         playPieceBeat(useAppSettings().pieceVolume);
@@ -1715,6 +1732,7 @@ class Store {
         useErrorStore().add(e);
       }
       this._memorizeStep++;
+      this._isMemorizeProcessing = false;
 
       if (this._memorizeStep >= problem.moves.length) {
         useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
