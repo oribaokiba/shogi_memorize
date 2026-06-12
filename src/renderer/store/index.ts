@@ -1033,7 +1033,23 @@ class Store {
   }
 
   /**
-   * 現在の棋譜の全末端ノードを問題としてコレクションに追加する
+   * 既存コレクションに同一の問題が存在するかチェックする
+   */
+  private isDuplicateProblem(sfen: string, playerColor: Color, moves: string[]): boolean {
+    if (!this._memorizeCollection) {
+      return false;
+    }
+    return this._memorizeCollection.problems.some(
+      (p) =>
+        p.sfen === sfen &&
+        p.playerColor === playerColor &&
+        p.moves.length === moves.length &&
+        p.moves.every((m, i) => m === moves[i]),
+    );
+  }
+
+  /**
+   * 現在の棋譜の全末端ノードを問題としてコレクションに追加する（重複はスキップ）
    */
   importCurrentRecordAsProblems(): number {
     if (!this._memorizeCollection) {
@@ -1041,8 +1057,14 @@ class Store {
     }
     const sfen = this.recordManager.record.initialPosition.sfen;
     const problems = this.extractNewProblems(this.recordManager.record, sfen);
-    this._memorizeCollection.problems.push(...problems);
-    return problems.length;
+    let addedCount = 0;
+    for (const problem of problems) {
+      if (!this.isDuplicateProblem(problem.sfen, problem.playerColor, problem.moves)) {
+        this._memorizeCollection.problems.push(problem);
+        addedCount++;
+      }
+    }
+    return addedCount;
   }
 
   /**
@@ -1145,25 +1167,37 @@ class Store {
   }
 
   /**
-   * 棋譜テキストデータを読み込み、全末端ノードを問題としてコレクションに追加する
-   * @returns 追加された問題数（エラー時は0）
+   * 棋譜テキストデータを読み込み、全末端ノードを問題としてコレクションに追加する（重複はスキップ）
+   * @returns 追加件数とスキップ件数を返す。棋譜の読み込みに失敗した場合は null。
    */
-  importRecordTextToCollection(data: string, sourceName: string): number {
+  importRecordTextToCollection(
+    data: string,
+    sourceName: string,
+  ): { added: number; skipped: number } | null {
     if (!this._memorizeCollection) {
       useErrorStore().add(new Error("問題集が作成されていません"));
-      return 0;
+      return null;
     }
     const error = this.recordManager.importRecord(data, {});
     if (error) {
       useErrorStore().add(
         new Error(`棋譜の読み込みに失敗しました (${sourceName}): ${error.message}`),
       );
-      return 0;
+      return null;
     }
     const sfen = this.recordManager.record.initialPosition.sfen;
     const problems = this.extractNewProblems(this.recordManager.record, sfen);
-    this._memorizeCollection.problems.push(...problems);
-    return problems.length;
+    let addedCount = 0;
+    let skippedCount = 0;
+    for (const problem of problems) {
+      if (!this.isDuplicateProblem(problem.sfen, problem.playerColor, problem.moves)) {
+        this._memorizeCollection.problems.push(problem);
+        addedCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+    return { added: addedCount, skipped: skippedCount };
   }
 
   /**
@@ -1177,7 +1211,7 @@ class Store {
   }
 
   /**
-   * 問題集から問題を削除する
+   * 問題集から問題を削除する（確認後）
    */
   removeProblemFromCollection(index: number): void {
     if (
@@ -1187,7 +1221,25 @@ class Store {
     ) {
       return;
     }
-    this._memorizeCollection.problems.splice(index, 1);
+    const problemName = this._memorizeCollection.problems[index].name;
+    this.showConfirmation({
+      message: `問題「${problemName}」を削除してもよろしいですか？`,
+      onOk: () => {
+        if (
+          !this._memorizeCollection ||
+          index < 0 ||
+          index >= this._memorizeCollection.problems.length
+        ) {
+          return;
+        }
+        this._memorizeCollection.problems.splice(index, 1);
+        if (this._editingProblemIndex === index) {
+          this._editingProblemIndex = -1;
+        } else if (this._editingProblemIndex > index) {
+          this._editingProblemIndex--;
+        }
+      },
+    });
   }
 
   /**

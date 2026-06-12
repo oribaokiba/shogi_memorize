@@ -146,16 +146,22 @@
       v-if="isSettingsDialogVisible"
       @close="isSettingsDialogVisible = false"
     />
+
+    <!-- 分岐追加ダイアログ -->
+    <MemorizeBranchDialog v-if="isBranchDialogVisible" @close="isBranchDialogVisible = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useStore } from "@/renderer/store";
+import { useMessageStore } from "@/renderer/store/message";
+import { useErrorStore } from "@/renderer/store/error";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
 import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vue";
 import MemorizeSettingsDialog from "@/renderer/view/dialog/MemorizeSettingsDialog.vue";
+import MemorizeBranchDialog from "@/renderer/view/dialog/MemorizeBranchDialog.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 
 defineProps({
@@ -183,17 +189,10 @@ const onEditSettings = () => {
   isSettingsDialogVisible.value = true;
 };
 
-// === 分岐を編集・追加 ===
+// === 分岐追加ダイアログ ===
+const isBranchDialogVisible = ref(false);
 const onAddBranch = () => {
-  // 問題名を入力させる簡易ダイアログ（prompt）
-  const name = prompt("問題名を入力してください", "");
-  if (!name || !name.trim()) {
-    return;
-  }
-  const ok = store.addBranchAsProblem(name.trim());
-  if (!ok) {
-    alert("問題を追加できませんでした。棋譜に手順がないか、問題集が作成されていません。");
-  }
+  isBranchDialogVisible.value = true;
 };
 
 // === 棋譜ファイルを開く ===
@@ -213,11 +212,21 @@ const openRecordFileForCreate = () => {
       if (!text) {
         return;
       }
-      const count = store.importRecordTextToCollection(text, file.name);
-      if (count > 0) {
-        alert(`${count}件の問題を追加しました（${file.name}）。`);
+      const result = store.importRecordTextToCollection(text, file.name);
+      if (result === null) {
+        // 棋譜読み込みエラーは store 内で既にエラー表示済み
+      } else if (result.added > 0) {
+        let msg = `${result.added}件の問題を追加しました（${file.name}）。`;
+        if (result.skipped > 0) {
+          msg += `（${result.skipped}件は重複のためスキップ）`;
+        }
+        useMessageStore().enqueue({ text: msg });
+      } else if (result.skipped > 0) {
+        useMessageStore().enqueue({
+          text: `${file.name} の全 ${result.skipped} 件の問題は既に登録されています。`,
+        });
       } else {
-        alert("棋譜から問題を抽出できませんでした。");
+        useErrorStore().add(new Error("棋譜から問題を抽出できませんでした。"));
       }
     };
     reader.readAsText(file, "shift-jis");
@@ -226,9 +235,21 @@ const openRecordFileForCreate = () => {
       reader2.onload = (e2) => {
         const text2 = e2.target?.result as string;
         if (text2) {
-          const count2 = store.importRecordTextToCollection(text2, file.name);
-          if (count2 > 0) {
-            alert(`${count2}件の問題を追加しました（${file.name}）。`);
+          const result2 = store.importRecordTextToCollection(text2, file.name);
+          if (result2 === null) {
+            // 棋譜読み込みエラーは store 内で既にエラー表示済み
+          } else if (result2.added > 0) {
+            let msg = `${result2.added}件の問題を追加しました（${file.name}）。`;
+            if (result2.skipped > 0) {
+              msg += `（${result2.skipped}件は重複のためスキップ）`;
+            }
+            useMessageStore().enqueue({ text: msg });
+          } else if (result2.skipped > 0) {
+            useMessageStore().enqueue({
+              text: `${file.name} の全 ${result2.skipped} 件の問題は既に登録されています。`,
+            });
+          } else {
+            useErrorStore().add(new Error("棋譜から問題を抽出できませんでした。"));
           }
         }
       };
@@ -242,7 +263,7 @@ const openRecordFileForCreate = () => {
 const onSaveYAML = () => {
   const yaml = store.saveMemorizeCollectionToYAML();
   if (yaml instanceof Error) {
-    alert(yaml.message);
+    useErrorStore().add(yaml);
     return;
   }
   const blob = new Blob([yaml], { type: "text/yaml;charset=utf-8" });
@@ -286,7 +307,7 @@ const onUpdateProblem = () => {
   }
   const ok = store.updateProblemFromRecord();
   if (ok) {
-    alert("問題を更新しました。");
+    useMessageStore().enqueue({ text: "問題を更新しました。" });
   }
 };
 
@@ -342,7 +363,7 @@ const openYAMLForSolving = () => {
       }
       const err = store.loadMemorizeCollectionFromYAML(text);
       if (err) {
-        alert("問題集の読み込みに失敗しました: " + err.message);
+        useErrorStore().add(err);
         return;
       }
       store.showMemorizeSolveDialog();
@@ -373,7 +394,7 @@ const openYAMLForCreating = () => {
       }
       const err = store.loadMemorizeCollectionFromYAML(text);
       if (err) {
-        alert("読み込みに失敗しました: " + err.message);
+        useErrorStore().add(err);
         return;
       }
       panelMode.value = "create";
