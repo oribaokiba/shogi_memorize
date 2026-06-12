@@ -1,44 +1,7 @@
 <template>
   <div>
-    <!-- メモライズモード：右側にメモライズパネルを配置 -->
-    <div v-if="isMemorizeMode" class="memorize-layout row">
-      <div class="memorize-board-area">
-        <div class="full column">
-          <div class="row">
-            <ControlPane
-              v-if="appSettings.boardLayoutType !== BoardLayoutType.STANDARD"
-              class="compact-control"
-              :group="ControlGroup.All"
-              :compact="true"
-            />
-            <BoardPane
-              :style="boardPaneStyle"
-              :max-size="boardPaneMaxSizeMemorize"
-              :left-control-type="appSettings.leftSideControlType"
-              :right-control-type="appSettings.rightSideControlType"
-              @resize="onBoardPaneResize"
-            />
-            <div :style="recordPaneStyleMemorize" class="column">
-              <RecordPane
-                class="record-area"
-                :show-comment="appSettings.showCommentInRecordView"
-                :show-elapsed-time="appSettings.showElapsedTimeInRecordView"
-                :show-top-control="!isConsecutiveGame"
-                :show-bottom-control="!isConsecutiveGame"
-                :show-branches="!isConsecutiveGame"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="memorize-side-panel">
-        <MemorizePanel />
-      </div>
-    </div>
-
     <!-- 通常モード -->
     <Splitpanes
-      v-else
       class="main-frame"
       horizontal
       :maximize-panes="false"
@@ -148,7 +111,6 @@ import { reactive, onMounted, onUnmounted, computed, ref } from "vue";
 import BoardPane from "./BoardPane.vue";
 import RecordPane, { minWidth as minRecordWidth } from "./RecordPane.vue";
 import TabPane, { headerHeight as tabHeaderHeight } from "./TabPane.vue";
-import MemorizePanel from "@/renderer/view/tab/MemorizePanel.vue";
 import RecordComment from "@/renderer/view/tab/RecordComment.vue";
 import ControlPane, { ControlGroup } from "./ControlPane.vue";
 import { RectSize } from "@/common/assets/geometry";
@@ -167,11 +129,8 @@ import { useAppSettings } from "@/renderer/store/settings";
 const splitterWidth = 8;
 const margin = 10;
 const lazyUpdateDelay = 100;
-const memorizeSidePanelWidth = 320;
 
 const appSettings = useAppSettings();
-
-const isMemorizeMode = computed(() => appSettings.tab === Tab.MEMORIZE);
 
 const isConsecutiveGame = false;
 const windowSize = reactive(new RectSize(window.innerWidth, window.innerHeight));
@@ -275,17 +234,6 @@ const boardPaneMaxSize = computed(() => {
   );
 });
 
-const boardPaneMaxSizeMemorize = computed(() => {
-  return new RectSize(
-    Math.max(
-      (windowSize.width - memorizeSidePanelWidth - minRecordWidth - margin * 2) *
-        (appSettings.boardLayoutType === BoardLayoutType.STANDARD ? 1.0 : 0.9),
-      0,
-    ),
-    Math.max(windowSize.height - margin * 2, 0),
-  );
-});
-
 const boardPaneStyle = computed(() => {
   return {
     margin: `${margin}px`,
@@ -303,21 +251,6 @@ const recordPaneStyle = computed(() => {
   return {
     margin: `${margin}px ${margin}px ${margin}px 0`,
     width: `${width}px`,
-    height: `${height}px`,
-  };
-});
-
-const recordPaneStyleMemorize = computed(() => {
-  const width =
-    windowSize.width -
-    memorizeSidePanelWidth -
-    (boardPaneSize.width +
-      margin * 3 +
-      (appSettings.boardLayoutType === BoardLayoutType.STANDARD ? 0 : boardPaneSize.height * 0.1));
-  const height = boardPaneSize.height;
-  return {
-    margin: `${margin}px ${margin}px ${margin}px 0`,
-    width: `${Math.max(width, minRecordWidth)}px`,
     height: `${height}px`,
   };
 });
@@ -396,21 +329,5 @@ const tabPaneSize2a = computed(
   text-align: center;
   line-height: 180%;
   padding: 0 5% 0 5%;
-}
-.memorize-layout {
-  height: 100%;
-  width: 100%;
-}
-.memorize-board-area {
-  flex: 1;
-  height: 100%;
-  overflow: hidden;
-}
-.memorize-side-panel {
-  width: 320px;
-  height: 100%;
-  overflow-y: auto;
-  border-left: 1px solid var(--border-color);
-  background-color: var(--panel-bg-color);
 }
 </style>

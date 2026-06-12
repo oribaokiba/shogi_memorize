@@ -69,8 +69,14 @@ class Store {
   // 新しい問題集コレクション管理
   private _memorizeCollection: MemorizeCollection | null = null;
   private _memorizeCollectionPath: string | null = null;
+  // 復習・統計
+  private _reviewMistakes: { problemIndex: number; moveIndex: number }[] = [];
+  private _memorizeCorrectCount = 0;
+  private _memorizeWrongCount = 0;
   private _customLayout: LayoutProfile | null = null;
   private _isAppSettingsDialogVisible = false;
+  private _isMemorizeDialogVisible = false;
+  private _isMemorizeCreateDialogVisible = false;
   private _reactive: UnwrapNestedRefs<Store>;
   private garbledNotified = false;
   private onChangePositionHandlers: ChangePositionHandler[] = [];
@@ -262,6 +268,30 @@ class Store {
 
   closeAppSettingsDialog(): void {
     this._isAppSettingsDialogVisible = false;
+  }
+
+  get isMemorizeSolveDialogVisible(): boolean {
+    return this._isMemorizeDialogVisible;
+  }
+
+  showMemorizeSolveDialog(): void {
+    this._isMemorizeDialogVisible = true;
+  }
+
+  closeMemorizeSolveDialog(): void {
+    this._isMemorizeDialogVisible = false;
+  }
+
+  get isMemorizeCreateDialogVisible(): boolean {
+    return this._isMemorizeCreateDialogVisible;
+  }
+
+  showMemorizeCreateDialog(): void {
+    this._isMemorizeCreateDialogVisible = true;
+  }
+
+  closeMemorizeCreateDialog(): void {
+    this._isMemorizeCreateDialogVisible = false;
   }
 
   doMove(move: Move): void {
@@ -763,6 +793,39 @@ class Store {
 
   get memorizeStep(): number {
     return this._memorizeStep;
+  }
+
+  /**
+   * 現在の手に対応するヒントを取得する
+   */
+  get currentHint(): string | null {
+    if (!this._memorizeCollection || this._currentProblemIndex < 0) {
+      return null;
+    }
+    const problem = this._memorizeCollection.problems[this._currentProblemIndex];
+    if (!problem || !problem.hints || problem.hints.length === 0) {
+      return null;
+    }
+    const hint = problem.hints.find((h) => h.index === this._memorizeStep);
+    return hint ? hint.text : null;
+  }
+
+  get memorizeCorrectCount(): number {
+    return this._memorizeCorrectCount;
+  }
+
+  get memorizeWrongCount(): number {
+    return this._memorizeWrongCount;
+  }
+
+  get reviewMistakes(): { problemIndex: number; moveIndex: number }[] {
+    return this._reviewMistakes;
+  }
+
+  resetMemorizeStats(): void {
+    this._memorizeCorrectCount = 0;
+    this._memorizeWrongCount = 0;
+    this._reviewMistakes = [];
   }
 
   get memorizePlayerColor(): Color | undefined {
