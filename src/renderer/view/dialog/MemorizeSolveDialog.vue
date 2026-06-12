@@ -35,15 +35,11 @@
       <!-- 共通手順のスキップ -->
       <div class="form-item">
         <span class="form-label">共通手順のスキップ</span>
-        <input
-          type="number"
+        <ToggleButton
           :value="skipCommonMoves"
-          min="0"
-          max="99"
-          class="form-input-number"
-          @change="onChangeSkipCommonMoves"
+          :label="skipCommonMoves ? 'スキップする' : 'スキップしない'"
+          @update:value="onChangeSkipCommonMoves"
         />
-        <span class="form-suffix">手（0=スキップなし）</span>
       </div>
     </div>
 
@@ -81,9 +77,8 @@ const onChangeMaxQuestions = (event: Event) => {
   store.dialogMaxQuestions = maxQuestions.value;
 };
 
-const onChangeSkipCommonMoves = (event: Event) => {
-  const val = parseInt((event.target as HTMLInputElement).value, 10);
-  skipCommonMoves.value = isNaN(val) || val < 0 ? 0 : val;
+const onChangeSkipCommonMoves = (v: boolean) => {
+  skipCommonMoves.value = v;
   store.dialogSkipCommonMoves = skipCommonMoves.value;
 };
 

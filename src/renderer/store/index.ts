@@ -87,12 +87,13 @@ class Store {
   private _solveIndex = 0;
   private _solveTotal = 0;
   private _isSolving = false;
-  private _skipCommonMoves = 0;
+  private _skipCommonMoves = false;
+  private _clearedPaths = new Set<string>();
 
   // ダイアログ設定の一時保存用
   private _dialogRandomOrder = false;
   private _dialogMaxQuestions = 0;
-  private _dialogSkipCommonMoves = 0;
+  private _dialogSkipCommonMoves = false;
 
   constructor() {
     const refs = reactive(this);
@@ -872,7 +873,7 @@ class Store {
     return this._isSolving;
   }
 
-  get skipCommonMoves(): number {
+  get skipCommonMoves(): boolean {
     return this._skipCommonMoves;
   }
 
@@ -911,11 +912,11 @@ class Store {
     this._dialogMaxQuestions = v;
   }
 
-  get dialogSkipCommonMoves(): number {
+  get dialogSkipCommonMoves(): boolean {
     return this._dialogSkipCommonMoves;
   }
 
-  set dialogSkipCommonMoves(v: number) {
+  set dialogSkipCommonMoves(v: boolean) {
     this._dialogSkipCommonMoves = v;
   }
 
@@ -946,6 +947,7 @@ class Store {
     }
     this.buildSolveOrder();
     this._skipCommonMoves = this._dialogSkipCommonMoves;
+    this._clearedPaths.clear();
     this._isSolving = true;
     this._appState = AppState.MEMORIZE;
     this.startCurrentSolveProblem();
@@ -990,7 +992,7 @@ class Store {
 
     this.recordManager.resetBySFEN(problem.sfen);
 
-    if (this._skipCommonMoves > 0) {
+    if (this._skipCommonMoves) {
       this.skipMovesForward(problem, moveObjects);
     } else if (moveObjects.length > 0 && moveObjects[0].color !== problem.playerColor) {
       this.recordManager.appendMove({ move: moveObjects[0] });
@@ -1002,10 +1004,20 @@ class Store {
     _problem: import("@/common/memorize/index.js").MemorizeProblem,
     moveObjects: Move[],
   ): void {
-    const skipCount = Math.min(this._skipCommonMoves, moveObjects.length);
-    const playerColor = _problem.playerColor;
-    let step = 0;
+    const sfen = _problem.sfen;
+    const moves = _problem.moves;
+    let skipCount = 0;
 
+    for (let i = 1; i <= moves.length; i++) {
+      const path = sfen + ":" + moves.slice(0, i).join(",");
+      if (this._clearedPaths.has(path)) {
+        skipCount = i;
+      } else {
+        break;
+      }
+    }
+
+    let step = 0;
     for (let i = 0; i < skipCount; i++) {
       if (i >= moveObjects.length) {
         break;
@@ -1016,6 +1028,7 @@ class Store {
 
     this._memorizeStep = step;
 
+    const playerColor = _problem.playerColor;
     if (step < moveObjects.length && moveObjects[step].color !== playerColor) {
       this.recordManager.appendMove({ move: moveObjects[step] });
       this._memorizeStep = step + 1;
@@ -1041,7 +1054,8 @@ class Store {
     this._solveOrder = [];
     this._solveIndex = 0;
     this._solveTotal = 0;
-    this._skipCommonMoves = 0;
+    this._skipCommonMoves = false;
+    this._clearedPaths.clear();
     this._memorizeProblems = [];
     this._currentProblemIndex = -1;
     this._memorizeStep = 0;
@@ -1652,6 +1666,7 @@ class Store {
       this._memorizeStep++;
 
       if (this._memorizeStep >= problem.moves.length) {
+        this.recordClearedProblem();
         useMessageStore().enqueue({ text: "正解です！クリアしました！" });
         return;
       }
@@ -1678,6 +1693,7 @@ class Store {
         this._isMemorizeProcessing = false;
 
         if (this._memorizeStep >= problem.moves.length) {
+          this.recordClearedProblem();
           useMessageStore().enqueue({ text: "正解です！クリアしました！" });
         }
       }
@@ -1687,6 +1703,19 @@ class Store {
       } catch {
         // ignore
       }
+    }
+  }
+
+  private recordClearedProblem(): void {
+    const colProblem = this.currentCollectionProblem;
+    if (!colProblem) {
+      return;
+    }
+    const sfen = colProblem.sfen;
+    const moves = colProblem.moves;
+    for (let i = 1; i <= moves.length; i++) {
+      const path = sfen + ":" + moves.slice(0, i).join(",");
+      this._clearedPaths.add(path);
     }
   }
 
