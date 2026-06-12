@@ -439,6 +439,7 @@ const openYAMLForCreating = () => {
 
 /* 作成済みエディタ */
 .create-editor {
+  display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: row;
@@ -462,9 +463,12 @@ const openYAMLForCreating = () => {
   color: white;
 }
 .editor-list-area {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
+  height: 100%;
 }
 .list-label {
   flex-shrink: 0;
@@ -476,6 +480,7 @@ const openYAMLForCreating = () => {
 }
 .list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   border-bottom: 1px solid var(--text-separator-color);
 }

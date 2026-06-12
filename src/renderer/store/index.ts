@@ -890,35 +890,15 @@ class Store {
     const sfen = record.initialPosition.sfen;
     const current = record.current;
 
-    // 現在位置が末端ノードかチェック
-    const hasNext = (node: ImmutableNode): boolean => {
-      let child = node.next;
-      while (child) {
-        // 特殊な手（投了など）は無視する
-        if (child.move && child.move instanceof Move) {
-          return true;
-        }
-        child = child.branch;
-      }
-      return false;
-    };
-    if (hasNext(current)) {
-      useErrorStore().add(new Error("最後の手まで選択してから追加してください。"));
-      return false;
-    }
-
-    // first から current までのパスを収集
-    // 同時にパス上に分岐がないかチェック
+    // first から current までのパスを収集します（上流の分岐チェックは行いません）。
     const pathUSI: string[] = [];
     const pathComments: (string | null)[] = [];
 
     const collectPath = (node: ImmutableNode, target: ImmutableNode): boolean => {
-      // 自分自身に到達したら成功
       if (node === target) {
         return true;
       }
 
-      // 子ノードを収集
       const children: ImmutableNode[] = [];
       let child = node.next;
       while (child) {
@@ -932,65 +912,79 @@ class Store {
         return false;
       }
 
-      // 分岐チェック: 複数の子がいる場合、どのパスが target に到達するか探索
+      // target に到達する子を特定
+      let targetChild: ImmutableNode | null = null;
       for (const c of children) {
         if (collectPath(c, target)) {
-          // この手をパスに追加
-          if (c.move && c.move instanceof Move) {
-            pathUSI.push(c.move.usi);
-          }
-          pathComments.push(c.comment || null);
-          return true;
+          targetChild = c;
+          break;
         }
+      }
+
+      if (targetChild) {
+        if (targetChild.move && targetChild.move instanceof Move) {
+          pathUSI.unshift(targetChild.move.usi); // 頭からにするため先頭に追加
+        }
+        pathComments.unshift(targetChild.comment || null);
+        return true;
       }
 
       return false;
     };
 
-    // パス上に分岐があるかを収集後にチェックするため、
-    // まずパスを収集
     const found = collectPath(record.first, current);
     if (!found) {
-      useErrorStore().add(new Error("パスの収集に失敗しました。"));
+      useErrorStore().add(new Error("手順のパス収集に失敗しました。"));
       return false;
     }
 
-    // パス上に分岐があるかチェック
-    // 収集したパスの各ノードで兄弟ノードがあるか確認
-    const checkBranchesOnPath = (): boolean => {
-      let node: ImmutableNode | undefined = record.first;
-      // ルート以外で、first の次の手からチェック
-      for (let i = 0; i < pathUSI.length; i++) {
-        // node の次の子を収集
+    // current 以降のパスを一意に探索（子ノードが常に最大1つの有効な手であること）し、
+    // 分岐がなければ末端までのパスを収集します。
+    const remainingUSI: string[] = [];
+    const remainingComments: (string | null)[] = [];
+    const collectRemainingPath = (node: ImmutableNode): boolean => {
+      let curr = node;
+      while (true) {
         const children: ImmutableNode[] = [];
-        let child = node.next;
+        let child = curr.next;
         while (child) {
           if (child.move && child.move instanceof Move) {
             children.push(child);
           }
           child = child.branch;
         }
-        // 分岐がある（子が2つ以上）場合、追加できない
-        if (children.length > 1) {
-          useErrorStore().add(
-            new Error(
-              `分岐がある手順は追加できません。現在の手順が一意になるように選択してください。`,
-            ),
-          );
-          return false;
+
+        if (children.length === 0) {
+          break; // 末端に到達
         }
-        // 次のノードに進む
-        node = children[0];
+        if (children.length > 1) {
+          return false; // 分岐あり
+        }
+
+        const nextNode = children[0];
+        if (nextNode.move && nextNode.move instanceof Move) {
+          remainingUSI.push(nextNode.move.usi);
+        }
+        remainingComments.push(nextNode.comment || null);
+        curr = nextNode;
       }
       return true;
     };
 
-    if (!checkBranchesOnPath()) {
+    if (!collectRemainingPath(current)) {
+      useErrorStore().add(
+        new Error(
+          "選択された手順の先に分岐があります。一意になるように最後の分岐の後の局面を選択してください。",
+        ),
+      );
       return false;
     }
 
+    const fullPathUSI = [...pathUSI, ...remainingUSI];
+    const fullPathComments = [...pathComments, ...remainingComments];
+
     const hints: { index: number; text: string }[] = [];
-    pathComments.forEach((text, idx) => {
+    fullPathComments.forEach((text, idx) => {
       if (text && text.trim()) {
         hints.push({ index: idx, text: text.trim() });
       }
@@ -1002,7 +996,7 @@ class Store {
       name,
       sfen,
       playerColor,
-      moves: pathUSI,
+      moves: fullPathUSI,
       hints: hints.length > 0 ? hints : undefined,
     };
     this._memorizeCollection.problems.push(problem);
