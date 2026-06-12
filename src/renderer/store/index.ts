@@ -70,6 +70,8 @@ class Store {
   private _memorizeCollection: MemorizeCollection | null = null;
   private _memorizeCollectionPath: string | null = null;
   // 復習・統計
+  // 問題編集用
+  private _editingProblemIndex = -1;
   private _reviewMistakes: { problemIndex: number; moveIndex: number }[] = [];
   private _memorizeCorrectCount = 0;
   private _memorizeWrongCount = 0;
@@ -1203,6 +1205,207 @@ class Store {
       return;
     }
     this._memorizeCollection.problems[index] = problem;
+  }
+
+  // === 問題編集機能 ===
+
+  /**
+   * 編集中の問題のインデックス（-1 = 未選択）
+   */
+  get editingProblemIndex(): number {
+    return this._editingProblemIndex;
+  }
+
+  /**
+   * 指定された問題を棋譜エリアに読み込む
+   */
+  loadProblemToRecord(index: number): void {
+    if (
+      !this._memorizeCollection ||
+      index < 0 ||
+      index >= this._memorizeCollection.problems.length
+    ) {
+      return;
+    }
+    const problem = this._memorizeCollection.problems[index];
+
+    // SFENで初期局面を設定
+    this.recordManager.resetBySFEN(problem.sfen);
+
+    // 手順を1手ずつ追加（コメントも設定）
+    const pos = Position.newBySFEN(problem.sfen);
+    if (!pos) {
+      useErrorStore().add(new Error("問題の初期局面(SFEN)が正しくありません"));
+      return;
+    }
+
+    for (let i = 0; i < problem.moves.length; i++) {
+      const usi = problem.moves[i];
+      const move = pos.createMoveByUSI(usi);
+      if (!move) {
+        useErrorStore().add(new Error(`問題 ${problem.name} の${i + 1}手目 (${usi}) が不正です`));
+        return;
+      }
+      pos.doMove(move);
+      this.recordManager.appendMove({ move });
+
+      // ヒントがあればコメントとして設定
+      if (problem.hints) {
+        const hint = problem.hints.find((h) => h.index === i);
+        if (hint) {
+          // 現在のノードにコメントを設定
+          this.recordManager.updateComment(hint.text);
+        }
+      }
+    }
+
+    // 編集対象としてマーク
+    this._editingProblemIndex = index;
+  }
+
+  /**
+   * 現在の棋譜内容で編集中の問題を上書き保存する
+   * @returns 成功した場合は true
+   */
+  updateProblemFromRecord(): boolean {
+    if (!this._memorizeCollection || this._editingProblemIndex < 0) {
+      return false;
+    }
+
+    const record = this.recordManager.record;
+    const sfen = record.initialPosition.sfen;
+    const current = record.current;
+    const oldProblem = this._memorizeCollection.problems[this._editingProblemIndex];
+
+    // first から current までのパスを収集
+    const pathUSI: string[] = [];
+    const pathComments: (string | null)[] = [];
+
+    const collectPath = (node: ImmutableNode, target: ImmutableNode): boolean => {
+      if (node === target) {
+        return true;
+      }
+
+      const children: ImmutableNode[] = [];
+      let child = node.next;
+      while (child) {
+        if (child.move && child.move instanceof Move) {
+          children.push(child);
+        }
+        child = child.branch;
+      }
+
+      if (children.length === 0) {
+        return false;
+      }
+
+      let targetChild: ImmutableNode | null = null;
+      for (const c of children) {
+        if (collectPath(c, target)) {
+          targetChild = c;
+          break;
+        }
+      }
+
+      if (targetChild) {
+        if (targetChild.move && targetChild.move instanceof Move) {
+          pathUSI.unshift(targetChild.move.usi);
+        }
+        pathComments.unshift(targetChild.comment || null);
+        return true;
+      }
+
+      return false;
+    };
+
+    const found = collectPath(record.first, current);
+    if (!found) {
+      useErrorStore().add(new Error("手順のパス収集に失敗しました。"));
+      return false;
+    }
+
+    // current 以降のパスを一意に探索（分岐があればエラー）
+    const remainingUSI: string[] = [];
+    const remainingComments: (string | null)[] = [];
+    const collectRemainingPath = (node: ImmutableNode): boolean => {
+      let curr = node;
+      while (true) {
+        const children: ImmutableNode[] = [];
+        let child = curr.next;
+        while (child) {
+          if (child.move && child.move instanceof Move) {
+            children.push(child);
+          }
+          child = child.branch;
+        }
+
+        if (children.length === 0) {
+          break;
+        }
+        if (children.length > 1) {
+          return false;
+        }
+
+        const nextNode = children[0];
+        if (nextNode.move && nextNode.move instanceof Move) {
+          remainingUSI.push(nextNode.move.usi);
+        }
+        remainingComments.push(nextNode.comment || null);
+        curr = nextNode;
+      }
+      return true;
+    };
+
+    if (!collectRemainingPath(current)) {
+      useErrorStore().add(
+        new Error("選択された手順の先に分岐があります。末端まで一意になるように選択してください。"),
+      );
+      return false;
+    }
+
+    const fullPathUSI = [...pathUSI, ...remainingUSI];
+    const fullPathComments = [...pathComments, ...remainingComments];
+
+    if (fullPathUSI.length === 0) {
+      useErrorStore().add(new Error("手順が空です。"));
+      return false;
+    }
+
+    const hints: { index: number; text: string }[] = [];
+    fullPathComments.forEach((text, idx) => {
+      if (text && text.trim()) {
+        hints.push({ index: idx, text: text.trim() });
+      }
+    });
+
+    const updatedProblem: import("@/common/memorize/index.js").MemorizeProblem = {
+      name: oldProblem.name,
+      sfen,
+      playerColor: oldProblem.playerColor,
+      moves: fullPathUSI,
+      hints: hints.length > 0 ? hints : undefined,
+    };
+
+    this._memorizeCollection.problems[this._editingProblemIndex] = updatedProblem;
+    this._editingProblemIndex = -1;
+    return true;
+  }
+
+  /**
+   * 編集中の問題の名前を変更する
+   */
+  renameEditingProblem(name: string): void {
+    if (!this._memorizeCollection || this._editingProblemIndex < 0) {
+      return;
+    }
+    this._memorizeCollection.problems[this._editingProblemIndex].name = name;
+  }
+
+  /**
+   * 編集状態をクリアする
+   */
+  clearEditingProblem(): void {
+    this._editingProblemIndex = -1;
   }
 
   importKIFForMemorize(data: string): Error | undefined {

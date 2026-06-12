@@ -81,7 +81,7 @@
         <!-- 左側: 操作用ボタン -->
         <div class="editor-buttons column">
           <button class="ctrl-btn" @click="onAddBranch">
-            <Icon :icon="IconType.TREE" /><span>分岐を編集・追加</span>
+            <Icon :icon="IconType.TREE" /><span>分岐を追加</span>
           </button>
           <button class="ctrl-btn" @click="openRecordFileForCreate">
             <Icon :icon="IconType.OPEN_FOLDER" /><span>棋譜ファイルを開く</span>
@@ -92,6 +92,24 @@
           <button class="ctrl-btn" @click="onEditSettings">
             <Icon :icon="IconType.SETTINGS" /><span>問題集の設定</span>
           </button>
+          <template v-if="store.editingProblemIndex >= 0">
+            <div class="edit-separator"></div>
+            <div class="edit-name-area">
+              <span class="edit-name-label">問題名</span>
+              <input
+                v-model="editingName"
+                type="text"
+                class="edit-name-input"
+                @keyup.enter="onUpdateProblem"
+              />
+            </div>
+            <button class="ctrl-btn update-btn" @click="onUpdateProblem">
+              <Icon :icon="IconType.CHECK" /><span>問題を更新</span>
+            </button>
+            <button class="ctrl-btn cancel-btn" @click="onCancelEditing">
+              <Icon :icon="IconType.CLOSE" /><span>編集をキャンセル</span>
+            </button>
+          </template>
         </div>
 
         <!-- 右側: 問題一覧 -->
@@ -102,11 +120,16 @@
               v-for="(problem, idx) in store.memorizeCollection.problems"
               :key="idx"
               class="item"
+              :class="{ current: store.editingProblemIndex === idx }"
+              @click="onSelectProblem(idx)"
             >
               <span class="idx">{{ idx + 1 }}</span>
               <span class="name">{{ problem.name }}</span>
               <span class="moves">{{ problem.moves.length }}手</span>
-              <button class="icon-btn del-btn" @click="removeProblem(idx)">
+              <button class="icon-btn edit-btn" title="編集" @click.stop="onSelectProblem(idx)">
+                <Icon :icon="IconType.EDIT" />
+              </button>
+              <button class="icon-btn del-btn" @click.stop="removeProblem(idx)">
                 <Icon :icon="IconType.DELETE" />
               </button>
             </div>
@@ -127,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useStore } from "@/renderer/store";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
@@ -229,6 +252,47 @@ const onSaveYAML = () => {
   a.download = `${store.memorizeCollection?.title ?? "problems"}.yaml`;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+// === 問題編集 ===
+const editingName = ref("");
+
+const updateEditingName = () => {
+  const idx = store.editingProblemIndex;
+  const collection = store.memorizeCollection;
+  if (idx >= 0 && collection && idx < collection.problems.length) {
+    editingName.value = collection.problems[idx].name;
+  }
+};
+
+// editingProblemIndex の変更を監視して名前を更新
+watch(
+  () => store.editingProblemIndex,
+  () => {
+    updateEditingName();
+  },
+);
+
+const onSelectProblem = (idx: number) => {
+  store.loadProblemToRecord(idx);
+  updateEditingName();
+};
+
+// === 編集を確定 ===
+const onUpdateProblem = () => {
+  // 名前を反映
+  if (editingName.value.trim()) {
+    store.renameEditingProblem(editingName.value.trim());
+  }
+  const ok = store.updateProblemFromRecord();
+  if (ok) {
+    alert("問題を更新しました。");
+  }
+};
+
+// === 編集をキャンセル ===
+const onCancelEditing = () => {
+  store.clearEditingProblem();
 };
 
 // === 問題削除 ===
@@ -631,6 +695,14 @@ const openYAMLForCreating = () => {
   background-color: #ff9800;
   color: white;
 }
+.edit-btn {
+  border-color: #2196f3;
+  color: #2196f3;
+}
+.edit-btn:hover {
+  background-color: #2196f3;
+  color: white;
+}
 .del-btn {
   border-color: #c0392b;
   color: #c0392b;
@@ -638,6 +710,46 @@ const openYAMLForCreating = () => {
 .del-btn:hover {
   background-color: #c0392b;
   color: white;
+}
+.update-btn {
+  border-color: #4caf50;
+  color: #4caf50;
+}
+.update-btn:hover {
+  background-color: #4caf50;
+  color: white;
+}
+.cancel-btn {
+  border-color: #ff9800;
+  color: #ff9800;
+}
+.cancel-btn:hover {
+  background-color: #ff9800;
+  color: white;
+}
+.edit-separator {
+  border-top: 1px solid var(--text-separator-color);
+  margin: 4px 0;
+}
+.edit-name-area {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+.edit-name-label {
+  font-size: 0.75em;
+  color: var(--text-color-muted);
+}
+.edit-name-input {
+  width: 100%;
+  padding: 2px 4px;
+  background: var(--text-bg-color);
+  border: 1px solid var(--text-separator-color);
+  color: var(--text-color);
+  font-size: 0.82em;
+  border-radius: 2px;
+  box-sizing: border-box;
 }
 .close-btn {
   width: 100%;
