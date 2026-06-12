@@ -1649,34 +1649,27 @@ class Store {
 
       if (this._memorizeStep >= problem.moves.length) {
         useMessageStore().enqueue({ text: "正解です！クリアしました！" });
-        setTimeout(() => {
-          this.nextProblem();
-        }, 1000);
+        // setTimeout なし、次の問題への遷移はユーザーが「次の問題へ」ボタンを押すまで待つ
         return;
       }
 
+      // 次の手が相手の手番であれば即座に自動進行（setTimeout不使用で競合を防止）
       const actualPlayerColor =
         this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
       const nextExpectedMove = problem.moves[this._memorizeStep];
       if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
-        this._isMemorizeProcessing = true;
-        setTimeout(() => {
-          this.recordManager.appendMove({ move: nextExpectedMove });
-          try {
-            playPieceBeat(useAppSettings().pieceVolume);
-          } catch (e) {
-            useErrorStore().add(e);
-          }
-          this._memorizeStep++;
-          this._isMemorizeProcessing = false;
+        this.recordManager.appendMove({ move: nextExpectedMove });
+        try {
+          playPieceBeat(useAppSettings().pieceVolume);
+        } catch (e) {
+          useErrorStore().add(e);
+        }
+        this._memorizeStep++;
 
-          if (this._memorizeStep >= problem.moves.length) {
-            useMessageStore().enqueue({ text: "正解です！クリアしました！" });
-            setTimeout(() => {
-              this.nextProblem();
-            }, 1000);
-          }
-        }, 500);
+        if (this._memorizeStep >= problem.moves.length) {
+          useMessageStore().enqueue({ text: "正解です！クリアしました！" });
+          // setTimeout なし、次の問題への遷移はユーザーが「次の問題へ」ボタンを押すまで待つ
+        }
       }
     } else {
       try {
@@ -1707,34 +1700,25 @@ class Store {
 
     if (this._memorizeStep >= problem.moves.length) {
       useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
-      setTimeout(() => {
-        this.nextProblem();
-      }, 1000);
       return;
     }
 
+    // 次の手が相手の手番であれば即座に自動進行
     const actualPlayerColor =
       this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
     const nextExpectedMove = problem.moves[this._memorizeStep];
     if (nextExpectedMove && nextExpectedMove.color !== actualPlayerColor) {
-      this._isMemorizeProcessing = true;
-      setTimeout(() => {
-        this.recordManager.appendMove({ move: nextExpectedMove });
-        try {
-          playPieceBeat(useAppSettings().pieceVolume);
-        } catch (e) {
-          useErrorStore().add(e);
-        }
-        this._memorizeStep++;
-        this._isMemorizeProcessing = false;
+      this.recordManager.appendMove({ move: nextExpectedMove });
+      try {
+        playPieceBeat(useAppSettings().pieceVolume);
+      } catch (e) {
+        useErrorStore().add(e);
+      }
+      this._memorizeStep++;
 
-        if (this._memorizeStep >= problem.moves.length) {
-          useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
-          setTimeout(() => {
-            this.nextProblem();
-          }, 1000);
-        }
-      }, 500);
+      if (this._memorizeStep >= problem.moves.length) {
+        useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
+      }
     }
   }
 

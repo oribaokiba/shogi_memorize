@@ -59,18 +59,27 @@
               <Icon :icon="IconType.CHECK" />
               <span>クリアしました！</span>
             </div>
+            <div v-if="isGiveUpCleared" class="clear give-up">
+              <Icon :icon="IconType.END" />
+              <span>ギブアップしました</span>
+            </div>
             <div class="solve-buttons">
-              <button class="ctrl-btn" :disabled="!hasHint || isSolveCleared" @click="showHint">
+              <button class="ctrl-btn" :disabled="!hasHint || disableActions" @click="showHint">
                 <Icon :icon="IconType.HELP" /><span>ヒント</span>
               </button>
               <button class="ctrl-btn" @click="restartSolveProblem">
                 <Icon :icon="IconType.REFRESH" /><span>最初から</span>
               </button>
-              <button class="ctrl-btn" :disabled="isSolveCleared" @click="giveUpSolveProblem">
+              <button class="ctrl-btn" :disabled="disableActions" @click="giveUpSolveProblem">
                 <Icon :icon="IconType.END" /><span>ギブアップ</span>
               </button>
               <button class="ctrl-btn stop-btn" @click="endSolve">
                 <Icon :icon="IconType.CLOSE" /><span>解答終了</span>
+              </button>
+            </div>
+            <div v-if="isCleared && !isLastProblem" class="next-buttons">
+              <button class="ctrl-btn next-btn" @click="goToNextProblem">
+                <Icon :icon="IconType.NEXT" /><span>次の問題へ</span>
               </button>
             </div>
           </div>
@@ -357,6 +366,32 @@ const isSolveCleared = computed(() => {
   return store.memorizeStep >= len;
 });
 
+// ギブアップクリア状態の判定（クリアより優先度を下げるため、クリアでなければギブアップ）
+const isGiveUpCleared = computed(() => {
+  const len = currentProblemMovesLength.value;
+  if (len === 0) {
+    return false;
+  }
+  return store.memorizeStep >= len;
+});
+// 注意: isSolveCleared が true なら isGiveUpCleared も true になるが、
+// テンプレートの v-if 順により、isSolveCleared が先に評価される
+
+// クリアまたはギブアップで完了状態か
+const isCleared = computed(() => {
+  return isSolveCleared.value;
+});
+
+// 最終問題か
+const isLastProblem = computed(() => {
+  return store.solveIndex >= store.solveTotal - 1;
+});
+
+// 操作を無効化する状態
+const disableActions = computed(() => {
+  return isSolveCleared.value;
+});
+
 const hintVisible = ref(false);
 
 const hasHint = computed(() => {
@@ -382,6 +417,11 @@ const restartSolveProblem = () => {
 
 const giveUpSolveProblem = () => {
   store.giveUpMemorize();
+};
+
+const goToNextProblem = () => {
+  hintVisible.value = false;
+  store.nextProblem();
 };
 
 const endSolve = () => {
