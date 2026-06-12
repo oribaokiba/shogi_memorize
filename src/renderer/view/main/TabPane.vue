@@ -25,7 +25,11 @@
           :size="contentSize"
         />
         <RecordComment v-if="activeTab === Tab.COMMENT" class="full tab-content" />
-        <MemorizePanel v-if="activeTab === Tab.MEMORIZE" class="full tab-content" />
+        <MemorizePanel
+          v-if="activeTab === Tab.MEMORIZE"
+          class="full tab-content"
+          :size="contentSize"
+        />
       </div>
     </div>
   </div>

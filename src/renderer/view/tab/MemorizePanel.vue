@@ -1,5 +1,5 @@
 <template>
-  <div class="root full column">
+  <div class="root full column" :style="size ? { height: `${size.height}px` } : {}">
     <!-- モード選択タブ -->
     <div class="mode-switch row">
       <button
@@ -133,6 +133,15 @@ import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
 import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vue";
 import MemorizeSettingsDialog from "@/renderer/view/dialog/MemorizeSettingsDialog.vue";
+import { RectSize } from "@/common/assets/geometry.js";
+
+defineProps({
+  size: {
+    type: RectSize,
+    required: false,
+    default: undefined,
+  },
+});
 
 type PanelMode = "solve" | "create";
 
