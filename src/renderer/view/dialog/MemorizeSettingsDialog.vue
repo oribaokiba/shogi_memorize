@@ -1,6 +1,6 @@
 <template>
   <DialogFrame @cancel="onCancel">
-    <div class="title">新規問題集を作成</div>
+    <div class="title">問題集の設定</div>
 
     <div class="dialog-body">
       <div class="form-item">
@@ -25,7 +25,7 @@
 
     <div class="main-buttons">
       <button data-hotkey="Escape" @click="onCancel">キャンセル</button>
-      <button class="create-btn" @click="onCreate">作成</button>
+      <button class="save-btn" @click="onSave">保存</button>
     </div>
   </DialogFrame>
 </template>
@@ -37,16 +37,16 @@ import DialogFrame from "./DialogFrame.vue";
 
 const store = useStore();
 
-const title = ref("");
-const playerColor = ref<"black" | "white">("black");
+const title = ref(store.memorizeCollection?.title ?? "");
+const playerColor = ref<"black" | "white">(store.memorizeCollection?.playerColor ?? "black");
 
 const emit = defineEmits<{
   (e: "close"): void;
 }>();
 
-const onCreate = () => {
-  const t = title.value.trim() || "新規問題集";
-  store.newMemorizeCollection(t, playerColor.value);
+const onSave = () => {
+  const t = title.value.trim() || "問題集";
+  store.updateMemorizeCollectionSettings(t, playerColor.value);
   emit("close");
 };
 
@@ -133,12 +133,12 @@ const onCancel = () => {
 .main-buttons button:hover {
   background-color: var(--button-hover-bg-color);
 }
-.main-buttons .create-btn {
+.main-buttons .save-btn {
   background-color: #4caf50;
   color: white;
   border-color: #4caf50;
 }
-.main-buttons .create-btn:hover {
+.main-buttons .save-btn:hover {
   opacity: 0.85;
 }
 </style>

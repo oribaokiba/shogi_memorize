@@ -849,10 +849,11 @@ class Store {
   /**
    * 新しい問題集コレクションを作成する
    */
-  newMemorizeCollection(title: string): void {
+  newMemorizeCollection(title: string, playerColor?: "black" | "white"): void {
     this._memorizeCollection = {
       version: 1,
       title,
+      playerColor: playerColor || "black",
       problems: [],
     };
     this._memorizeCollectionPath = null;
@@ -860,6 +861,152 @@ class Store {
     this._currentProblemIndex = -1;
     this._memorizeStep = 0;
     this._appState = AppState.NORMAL;
+  }
+
+  /**
+   * 問題集の設定（タイトル・手番）を更新する
+   */
+  updateMemorizeCollectionSettings(title: string, playerColor: "black" | "white"): void {
+    if (!this._memorizeCollection) {
+      return;
+    }
+    this._memorizeCollection.title = title;
+    this._memorizeCollection.playerColor = playerColor;
+  }
+
+  /**
+   * ルート(first)から現在位置までのパスを収集し、1問題として追加する。
+   * パス上に分岐がある場合はエラーとする。
+   * 現在位置が末端ノードでない場合もエラーとする。
+   * 各手のコメント（comment）をヒントとして回収する。
+   * @returns 追加された場合は true、失敗した場合は false
+   */
+  addBranchAsProblem(name: string): boolean {
+    if (!this._memorizeCollection) {
+      return false;
+    }
+
+    const record = this.recordManager.record;
+    const sfen = record.initialPosition.sfen;
+    const current = record.current;
+
+    // 現在位置が末端ノードかチェック
+    const hasNext = (node: ImmutableNode): boolean => {
+      let child = node.next;
+      while (child) {
+        // 特殊な手（投了など）は無視する
+        if (child.move && child.move instanceof Move) {
+          return true;
+        }
+        child = child.branch;
+      }
+      return false;
+    };
+    if (hasNext(current)) {
+      useErrorStore().add(new Error("最後の手まで選択してから追加してください。"));
+      return false;
+    }
+
+    // first から current までのパスを収集
+    // 同時にパス上に分岐がないかチェック
+    const pathUSI: string[] = [];
+    const pathComments: (string | null)[] = [];
+
+    const collectPath = (node: ImmutableNode, target: ImmutableNode): boolean => {
+      // 自分自身に到達したら成功
+      if (node === target) {
+        return true;
+      }
+
+      // 子ノードを収集
+      const children: ImmutableNode[] = [];
+      let child = node.next;
+      while (child) {
+        if (child.move && child.move instanceof Move) {
+          children.push(child);
+        }
+        child = child.branch;
+      }
+
+      if (children.length === 0) {
+        return false;
+      }
+
+      // 分岐チェック: 複数の子がいる場合、どのパスが target に到達するか探索
+      for (const c of children) {
+        if (collectPath(c, target)) {
+          // この手をパスに追加
+          if (c.move && c.move instanceof Move) {
+            pathUSI.push(c.move.usi);
+          }
+          pathComments.push(c.comment || null);
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // パス上に分岐があるかを収集後にチェックするため、
+    // まずパスを収集
+    const found = collectPath(record.first, current);
+    if (!found) {
+      useErrorStore().add(new Error("パスの収集に失敗しました。"));
+      return false;
+    }
+
+    // パス上に分岐があるかチェック
+    // 収集したパスの各ノードで兄弟ノードがあるか確認
+    const checkBranchesOnPath = (): boolean => {
+      let node: ImmutableNode | undefined = record.first;
+      // ルート以外で、first の次の手からチェック
+      for (let i = 0; i < pathUSI.length; i++) {
+        // node の次の子を収集
+        const children: ImmutableNode[] = [];
+        let child = node.next;
+        while (child) {
+          if (child.move && child.move instanceof Move) {
+            children.push(child);
+          }
+          child = child.branch;
+        }
+        // 分岐がある（子が2つ以上）場合、追加できない
+        if (children.length > 1) {
+          useErrorStore().add(
+            new Error(
+              `分岐がある手順は追加できません。現在の手順が一意になるように選択してください。`,
+            ),
+          );
+          return false;
+        }
+        // 次のノードに進む
+        node = children[0];
+      }
+      return true;
+    };
+
+    if (!checkBranchesOnPath()) {
+      return false;
+    }
+
+    const hints: { index: number; text: string }[] = [];
+    pathComments.forEach((text, idx) => {
+      if (text && text.trim()) {
+        hints.push({ index: idx, text: text.trim() });
+      }
+    });
+
+    const playerColor =
+      this._memorizeCollection.playerColor === "white" ? Color.WHITE : Color.BLACK;
+    const problem: import("@/common/memorize/index.js").MemorizeProblem = {
+      name,
+      sfen,
+      playerColor,
+      moves: pathUSI,
+      hints: hints.length > 0 ? hints : undefined,
+    };
+    this._memorizeCollection.problems.push(problem);
+    return true;
   }
 
   /**

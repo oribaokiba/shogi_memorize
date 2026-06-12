@@ -35,6 +35,8 @@ export type MemorizeCollection = {
   version: number;
   /** 問題集タイトル */
   title: string;
+  /** 問題集全体のデフォルト手番 */
+  playerColor: "black" | "white";
   /** 問題一覧 */
   problems: MemorizeProblem[];
 };
@@ -72,6 +74,9 @@ export function loadMemorizeCollection(yamlText: string): MemorizeCollection | E
     return new Error("問題一覧が配列ではありません");
   }
 
+  // デフォルト手番 (互換性: 未指定の場合は black)
+  const playerColor: "black" | "white" = data.playerColor === "white" ? "white" : "black";
+
   const problems: MemorizeProblem[] = [];
   for (let i = 0; i < data.problems.length; i++) {
     const problem = data.problems[i] as Record<string, unknown> | undefined;
@@ -103,6 +108,7 @@ export function loadMemorizeCollection(yamlText: string): MemorizeCollection | E
   return {
     version: CURRENT_VERSION,
     title: data.title as string,
+    playerColor,
     problems,
   };
 }
@@ -114,6 +120,7 @@ export function saveMemorizeCollection(collection: MemorizeCollection): string {
   const data: Record<string, unknown> = {
     version: collection.version,
     title: collection.title,
+    playerColor: collection.playerColor,
     problems: collection.problems.map((p) => {
       const problem: Record<string, unknown> = {
         name: p.name,
