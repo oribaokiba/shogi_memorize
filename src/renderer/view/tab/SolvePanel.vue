@@ -85,9 +85,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useStore } from "@/renderer/store";
-import { useMessageStore } from "@/renderer/store/message";
+//import { useMessageStore } from "@/renderer/store/message";
 import { useErrorStore } from "@/renderer/store/error";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
@@ -149,12 +149,16 @@ const disableActions = computed(() => {
 const hintVisible = ref(false);
 
 const hasHint = computed(() => {
-  const problem = store.currentCollectionProblem;
-  if (!problem || !problem.hints) {
-    return false;
-  }
-  return problem.hints.length > 0;
+  return store.currentHint !== null;
 });
+
+// 手が進んだらヒント表示を消す
+watch(
+  () => store.memorizeStep,
+  () => {
+    hintVisible.value = false;
+  },
+);
 
 const showHint = () => {
   hintVisible.value = true;

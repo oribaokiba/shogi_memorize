@@ -93,10 +93,10 @@ export class MemorizeManager {
   }
 
   get currentHint(): string | null {
-    if (!this._memorizeCollection || this._currentProblemIndex < 0) {
+    if (!this._memorizeCollection) {
       return null;
     }
-    const problem = this._memorizeCollection.problems[this._currentProblemIndex];
+    const problem = this.currentCollectionProblem;
     if (!problem || !problem.hints || problem.hints.length === 0) {
       return null;
     }
@@ -556,10 +556,12 @@ export class MemorizeManager {
   ): import("@/common/memorize/index.js").MemorizeProblem[] {
     const problems: import("@/common/memorize/index.js").MemorizeProblem[] = [];
 
-    const dfs = (node: ImmutableNode, pathUSI: string[]) => {
+    const dfs = (node: ImmutableNode, pathUSI: string[], pathComments: (string | null)[]) => {
       const currentPath = [...pathUSI];
+      const currentComments = [...pathComments];
       if (node.move && node.move instanceof TsshogiMove) {
         currentPath.push(node.move.usi);
+        currentComments.push(node.comment || null);
       }
 
       const children: ImmutableNode[] = [];
@@ -572,23 +574,31 @@ export class MemorizeManager {
       if (children.length === 0) {
         if (currentPath.length > 0) {
           const pColor = currentPath.length % 2 === 0 ? Color.WHITE : Color.BLACK;
+
+          const hints: { index: number; text: string }[] = [];
+          currentComments.forEach((text, idx) => {
+            if (text && text.trim()) {
+              hints.push({ index: idx, text: text.trim() });
+            }
+          });
+
           problems.push({
             name: `${this._memorizeCollection!.problems.length + problems.length + 1}. 問題`,
             sfen,
             playerColor: pColor,
             moves: currentPath,
-            hints: undefined,
+            hints: hints.length > 0 ? hints : undefined,
           });
         }
         return;
       }
 
       children.forEach((child) => {
-        dfs(child, currentPath);
+        dfs(child, currentPath, currentComments);
       });
     };
 
-    dfs(record.first, []);
+    dfs(record.first, [], []);
     return problems;
   }
 
