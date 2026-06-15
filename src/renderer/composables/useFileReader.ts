@@ -15,14 +15,6 @@ export function useFileReader() {
         return;
       }
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        if (!text) {
-          return;
-        }
-        onLoad(text);
-      };
-      reader.readAsText(target.files![0], encoding);
       reader.onerror = () => {
         // shift-jis で失敗したら utf-8 で再試行
         const reader2 = new FileReader();
@@ -34,6 +26,14 @@ export function useFileReader() {
         };
         reader2.readAsText(target.files![0], "utf-8");
       };
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (!text) {
+          return;
+        }
+        onLoad(text);
+      };
+      reader.readAsText(target.files![0], encoding);
     };
     input.click();
   }
@@ -59,14 +59,6 @@ export function useFileReader() {
       }
       const file = target.files[0];
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        if (!text) {
-          return;
-        }
-        onLoad(text, file.name);
-      };
-      reader.readAsText(file!, "shift-jis");
       reader.onerror = () => {
         const reader2 = new FileReader();
         reader2.onload = (e2) => {
@@ -77,6 +69,14 @@ export function useFileReader() {
         };
         reader2.readAsText(file!, "utf-8");
       };
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (!text) {
+          return;
+        }
+        onLoad(text, file.name);
+      };
+      reader.readAsText(file!, "shift-jis");
     };
     input.click();
   }

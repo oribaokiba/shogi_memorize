@@ -376,16 +376,11 @@ export class MemorizeManager {
     if (this._timeLimitMode !== "total") {
       return -1;
     }
-    const limitMs =
-      (this._timeLimitSettings.timeSeconds +
-        this._timeLimitSettings.byoyomi +
-        this._timeLimitSettings.increment) *
-      1000;
-    if (limitMs <= 0) {
+    const totalMs = this.totalTimeMs;
+    if (totalMs < 0) {
       return -1;
     }
-    const elapsedMs = this._totalElapsedMs + this.getCurrentIntervalMs();
-    return Math.max(0, Math.ceil((limitMs - elapsedMs) / 1000));
+    return Math.ceil(totalMs / 1000);
   }
 
   /** 全体モードでの秒読み残り（秒） */
@@ -450,7 +445,7 @@ export class MemorizeManager {
       if (this._timeMs === 0 && this._byoyomi > 0) {
         // 持ち時間が尽きていたら秒読みを消費
         const consumedByoyomi = Math.ceil((diffMs - this._lastTimeMs) / 1000);
-        this._byoyomi = Math.max(0, this._byoyomi + consumedByoyomi);
+        this._byoyomi = Math.max(0, this._byoyomi - consumedByoyomi);
       }
       if (this._timeLimitMode === "total") {
         this._totalElapsedMs += diffMs;
@@ -479,7 +474,10 @@ export class MemorizeManager {
 
     // 秒読みリセット（秒読み設定がある場合）
     if (this._timeLimitSettings.byoyomi > 0) {
-      if (this._timeLimitMode === "perProblem" || (this._timeLimitMode === "total" && this.totalTimeMs > 0)) {
+      if (
+        this._timeLimitMode === "perProblem" ||
+        (this._timeLimitMode === "total" && this.totalTimeMs > 0)
+      ) {
         this._byoyomi = this._timeLimitSettings.byoyomi;
       }
     }
@@ -603,6 +601,10 @@ export class MemorizeManager {
       this._memorizeWrongCount += this._problemWrongMoves;
       this._memorizeCorrectCount += this._problemCorrectMoves;
       this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
+      // 個別統計をリセット（二重カウント防止）
+      this._problemCorrectMoves = 0;
+      this._problemWrongMoves = 0;
+      this._problemTotalPlayerMoves = 0;
     }
 
     // UI更新（時間切れを通知）
@@ -636,6 +638,10 @@ export class MemorizeManager {
       this._memorizeWrongCount += this._problemWrongMoves;
       this._memorizeCorrectCount += this._problemCorrectMoves;
       this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
+      // 個別統計をリセット（二重カウント防止）
+      this._problemCorrectMoves = 0;
+      this._problemWrongMoves = 0;
+      this._problemTotalPlayerMoves = 0;
     }
 
     // 全体結果を表示
@@ -1595,6 +1601,11 @@ export class MemorizeManager {
       }
     } else {
       this._problemWrongMoves++;
+      // 間違えた手を記録
+      this._reviewMistakes.push({
+        problemIndex: this._currentProblemIndex,
+        moveIndex: this._memorizeStep,
+      });
       try {
         beepShort({
           frequency: 400,
@@ -1644,6 +1655,17 @@ export class MemorizeManager {
     this.advanceClockAfterMove(false);
 
     if (this._memorizeStep >= problem.moves.length) {
+      // 問題完了時はタイマーを停止する
+      this.stopTimer();
+      if (this._onTimerUpdate) {
+        this._onTimerUpdate(
+          this._timeMs,
+          this._byoyomi,
+          this._timeLimitMode,
+          this._memorizePlayerColor,
+          this.totalTimeMs,
+        );
+      }
       return;
     }
 
@@ -1727,7 +1749,12 @@ export class MemorizeManager {
           return false;
         }
         const expectedMove = problem.moves[this._memorizeStep];
-        return expectedMove ? expectedMove.color === problem.playerColor : false;
+        if (!expectedMove) {
+          return false;
+        }
+        const actualPlayerColor =
+          this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
+        return expectedMove.color === actualPlayerColor;
       }
     }
     return false;

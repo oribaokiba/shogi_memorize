@@ -69,7 +69,10 @@
       </div>
     </div>
 
-    <MemorizeCreateDialog v-if="isCreateDialogVisible" @close="isCreateDialogVisible = false" />
+    <MemorizeCreateDialog
+      v-if="store.isMemorizeCreateDialogVisible"
+      @close="store.closeMemorizeCreateDialog()"
+    />
     <MemorizeSettingsDialog
       v-if="isSettingsDialogVisible"
       @close="isSettingsDialogVisible = false"
@@ -108,9 +111,8 @@ defineProps({
 const store = useStore();
 const { openYAMLFile, openRecordFile, downloadBlob } = useFileReader();
 
-const isCreateDialogVisible = ref(false);
 const showCreateDialog = () => {
-  isCreateDialogVisible.value = true;
+  store.showMemorizeCreateDialog();
 };
 
 const isSettingsDialogVisible = ref(false);

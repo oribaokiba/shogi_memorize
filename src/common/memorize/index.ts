@@ -180,9 +180,9 @@ function validateProblem(problem: unknown, index: number): Error | undefined {
 
 // USI文字列が有効な形式か簡易チェック
 function isValidUSIMove(move: string): boolean {
-  // 例: 7g7f, 8c8d, 5i5h, など 4文字 or 5文字 (成りは最後に +)
-  // 駒打ち: 2a3a+? など
-  return /^[1-9][a-i][1-9][a-i][+]?$/.test(move);
+  // 通常の指し手: 7g7f, 8c8d, 5i5h など4文字、成りは最後に +（5文字）
+  // 駒打ち: P*5e, R*3c など [駒種]*[座標] の形式
+  return /^([1-9][a-i][1-9][a-i][+]?|[PLNSGBRK]\*[1-9][a-i])$/.test(move);
 }
 
 function validateProblemInternal(p: MemorizeProblem, index: number): Error | undefined {

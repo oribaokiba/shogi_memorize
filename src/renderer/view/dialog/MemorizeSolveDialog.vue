@@ -172,7 +172,8 @@ const canStart = computed(() => {
     return false;
   }
   if (useTimeLimit.value) {
-    const totalLimit = timeLimitTotalSeconds.value + byoyomiSeconds_.value + incrementSeconds_.value;
+    const totalLimit =
+      timeLimitTotalSeconds.value + byoyomiSeconds_.value + incrementSeconds_.value;
     return totalLimit > 0;
   }
   return true;
@@ -268,8 +269,8 @@ const onStart = async () => {
   };
   store.closeMemorizeSolveDialog();
   await store.startSolveSession();
-  // ダイアログを閉じた後にタイマー開始（ダイアログ中に時間消費されるのを防ぐ）
-  store.startMemorizeTimer();
+  // startSolveSession() 内の startCurrentSolveProblem() で既に startTimer() が呼ばれているため、
+  // ここでは startMemorizeTimer() を呼ばない（重複呼び出し防止）
 };
 
 const onCancel = () => {
