@@ -46,7 +46,7 @@ const emit = defineEmits<{
 
 const onCreate = () => {
   const t = title.value.trim() || "新規問題集";
-  store.newMemorizeCollection(t, playerColor.value);
+  store.newEditCollection(t, playerColor.value);
   emit("close");
 };
 

@@ -22,6 +22,7 @@
     <ResetBookDialog v-if="store.appState === AppState.RESET_BOOK_DIALOG" />
     <PieceSetChangeDialog v-if="store.appState === AppState.PIECE_SET_CHANGE_DIALOG" />
     <MemorizeSolveDialog v-if="store.isMemorizeSolveDialogVisible" />
+    <MemorizeResultDialog v-if="store.isMemorizeResultDialogVisible" />
     <MemorizeCreateDialog v-if="store.isMemorizeCreateDialogVisible" />
     <SearchDuplicatePositionsDialog
       v-if="store.appState === AppState.SEARCH_DUPLICATE_POSITIONS_DIALOG"
@@ -62,6 +63,7 @@ import AddBookMovesDialog from "./dialog/AddBookMovesDialog.vue";
 import ResetBookDialog from "./dialog/ResetBookDialog.vue";
 import SearchDuplicatePositionsDialog from "./dialog/SearchDuplicatePositionsDialog.vue";
 import MemorizeSolveDialog from "./dialog/MemorizeSolveDialog.vue";
+import MemorizeResultDialog from "./dialog/MemorizeResultDialog.vue";
 import MemorizeCreateDialog from "./dialog/MemorizeCreateDialog.vue";
 import NotificationOverlay from "./overlay/NotificationOverlay.vue";
 import { useBusyState } from "@/renderer/store/busy";

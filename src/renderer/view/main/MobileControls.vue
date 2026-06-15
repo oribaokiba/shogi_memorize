@@ -1,19 +1,41 @@
 <template>
   <div>
     <div class="full row controls">
-      <button @click="store.changePly(0)">
+      <button
+        :disabled="!isOperational"
+        :class="{ 'disabled-look': !isOperational }"
+        @click="store.changePly(0)"
+      >
         <Icon :icon="IconType.FIRST" />
       </button>
-      <button @click="store.goBack()">
+      <button
+        :disabled="!isOperational"
+        :class="{ 'disabled-look': !isOperational }"
+        @click="store.goBack()"
+      >
         <Icon :icon="IconType.BACK" />
       </button>
-      <button @click="store.goForward()">
+      <button
+        :disabled="!isOperational"
+        :class="{ 'disabled-look': !isOperational }"
+        @click="store.goForward()"
+      >
         <Icon :icon="IconType.NEXT" />
       </button>
-      <button @click="store.changePly(Number.MAX_SAFE_INTEGER)">
+      <button
+        :disabled="!isOperational"
+        :class="{ 'disabled-look': !isOperational }"
+        @click="store.changePly(Number.MAX_SAFE_INTEGER)"
+      >
         <Icon :icon="IconType.LAST" />
       </button>
-      <button @click="store.removeCurrentMove()"><Icon :icon="IconType.DELETE" /></button>
+      <button
+        :disabled="!isOperational"
+        :class="{ 'disabled-look': !isOperational }"
+        @click="store.removeCurrentMove()"
+      >
+        <Icon :icon="IconType.DELETE" />
+      </button>
       <button @click="isMobileMenuVisible = true">Menu</button>
     </div>
     <FileMenu v-if="isMobileMenuVisible" @close="isMobileMenuVisible = false" />
@@ -25,10 +47,12 @@ import { IconType } from "@/renderer/assets/icons";
 import { useStore } from "@/renderer/store";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import FileMenu from "@/renderer/view/menu/FileMenu.vue";
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { AppState } from "@/common/control/state.js";
 
 const store = useStore();
 const isMobileMenuVisible = ref(false);
+const isOperational = computed(() => store.appState === AppState.NORMAL);
 </script>
 
 <style scoped>

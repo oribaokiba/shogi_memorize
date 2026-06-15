@@ -37,8 +37,8 @@ import DialogFrame from "./DialogFrame.vue";
 
 const store = useStore();
 
-const title = ref(store.memorizeCollection?.title ?? "");
-const playerColor = ref<"black" | "white">(store.memorizeCollection?.playerColor ?? "black");
+const title = ref(store.editCollection?.title ?? "");
+const playerColor = ref<"black" | "white">(store.editCollection?.playerColor ?? "black");
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -46,7 +46,7 @@ const emit = defineEmits<{
 
 const onSave = () => {
   const t = title.value.trim() || "問題集";
-  store.updateMemorizeCollectionSettings(t, playerColor.value);
+  store.updateEditCollectionSettings(t, playerColor.value);
   emit("close");
 };
 

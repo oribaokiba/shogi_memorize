@@ -1,6 +1,6 @@
 <template>
   <div class="root full column" :style="size ? { height: `${size.height}px` } : {}">
-    <div v-if="!store.memorizeCollection" class="content-area column center">
+    <div v-if="!store.editCollection" class="content-area column center">
       <div class="create-area">
         <button class="ctrl-btn create-btn" @click="showCreateDialog">
           <Icon :icon="IconType.ADD" />
@@ -49,10 +49,10 @@
       </div>
 
       <div class="editor-list-area">
-        <div class="list-label">問題一覧（{{ store.memorizeCollection.problems.length }}問）</div>
+        <div class="list-label">問題一覧（{{ store.editCollection.problems.length }}問）</div>
         <div class="list">
           <div
-            v-for="(problem, idx) in store.memorizeCollection.problems"
+            v-for="(problem, idx) in store.editCollection.problems"
             :key="idx"
             class="item"
             :class="{ current: store.editingProblemIndex === idx }"
@@ -75,6 +75,11 @@
       @close="isSettingsDialogVisible = false"
     />
     <MemorizeBranchDialog v-if="isBranchDialogVisible" @close="isBranchDialogVisible = false" />
+    <MemorizeImportCommentsDialog
+      v-if="isImportCommentsDialogVisible"
+      @confirm="onImportCommentsConfirm"
+      @close="isImportCommentsDialogVisible = false"
+    />
   </div>
 </template>
 
@@ -88,6 +93,7 @@ import { IconType } from "@/renderer/assets/icons";
 import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vue";
 import MemorizeSettingsDialog from "@/renderer/view/dialog/MemorizeSettingsDialog.vue";
 import MemorizeBranchDialog from "@/renderer/view/dialog/MemorizeBranchDialog.vue";
+import MemorizeImportCommentsDialog from "@/renderer/view/dialog/MemorizeImportCommentsDialog.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 import { useFileReader } from "@/renderer/composables/useFileReader.js";
 
@@ -117,37 +123,54 @@ const onAddBranch = () => {
   isBranchDialogVisible.value = true;
 };
 
+// 棋譜読み込み時のコメント取り込み確認ダイアログ
+const isImportCommentsDialogVisible = ref(false);
+const pendingRecordData = ref("");
+const pendingRecordFileName = ref("");
+
 const openRecordFileForCreate = () => {
   openRecordFile((text: string, fileName: string) => {
-    const result = store.importRecordTextToCollection(text, fileName);
-    if (result === null) {
-      return;
-    }
-    if (result.added > 0) {
-      let msg = `${result.added}件の問題を追加しました（${fileName}）。`;
-      if (result.skipped > 0) {
-        msg += `（${result.skipped}件は重複のためスキップ）`;
-      }
-      useMessageStore().enqueue({ text: msg });
-    } else if (result.skipped > 0) {
-      useMessageStore().enqueue({
-        text: `${fileName} の全 ${result.skipped} 件の問題は既に登録されています。`,
-      });
-    } else {
-      useErrorStore().add(new Error("棋譜から問題を抽出できませんでした。"));
-    }
+    pendingRecordData.value = text;
+    pendingRecordFileName.value = fileName;
+    isImportCommentsDialogVisible.value = true;
   });
 };
 
+const onImportCommentsConfirm = (includeComments: boolean) => {
+  const result = store.importRecordTextToEditCollection(
+    pendingRecordData.value,
+    pendingRecordFileName.value,
+    includeComments,
+  );
+  if (result === null) {
+    return;
+  }
+  if (result.added > 0) {
+    let msg = `${result.added}件の問題を追加しました（${pendingRecordFileName.value}）。`;
+    if (result.skipped > 0) {
+      msg += `（${result.skipped}件は重複のためスキップ）`;
+    }
+    useMessageStore().enqueue({ text: msg });
+  } else if (result.skipped > 0) {
+    useMessageStore().enqueue({
+      text: `${pendingRecordFileName.value} の全 ${result.skipped} 件の問題は既に登録されています。`,
+    });
+  } else {
+    useErrorStore().add(new Error("棋譜から問題を抽出できませんでした。"));
+  }
+  pendingRecordData.value = "";
+  pendingRecordFileName.value = "";
+};
+
 const onSaveYAML = () => {
-  const yaml = store.saveMemorizeCollectionToYAML();
+  const yaml = store.saveEditCollectionToYAML();
   if (yaml instanceof Error) {
     useErrorStore().add(yaml);
     return;
   }
   downloadBlob(
     yaml,
-    `${store.memorizeCollection?.title ?? "problems"}.yaml`,
+    `${store.editCollection?.title ?? "problems"}.yaml`,
     "text/yaml;charset=utf-8",
   );
 };
@@ -156,8 +179,8 @@ const editingName = ref("");
 
 const updateEditingName = () => {
   const idx = store.editingProblemIndex;
-  if (idx >= 0 && store.memorizeCollection && idx < store.memorizeCollection.problems.length) {
-    editingName.value = store.memorizeCollection.problems[idx].name;
+  if (idx >= 0 && store.editCollection && idx < store.editCollection.problems.length) {
+    editingName.value = store.editCollection.problems[idx].name;
   }
 };
 
@@ -169,31 +192,31 @@ watch(
 );
 
 const onSelectProblem = (idx: number) => {
-  store.loadProblemToRecord(idx);
+  store.loadEditProblemToRecord(idx);
   updateEditingName();
 };
 
 const onUpdateProblem = () => {
   if (editingName.value.trim()) {
-    store.renameEditingProblem(editingName.value.trim());
+    store.renameEditProblem(editingName.value.trim());
   }
-  const ok = store.updateProblemFromRecord();
+  const ok = store.updateEditProblemFromRecord();
   if (ok) {
     useMessageStore().enqueue({ text: "問題を更新しました。" });
   }
 };
 
 const onCancelEditing = () => {
-  store.clearEditingProblem();
+  store.clearEditProblem();
 };
 
 const removeProblem = (idx: number) => {
-  store.removeProblemFromCollection(idx);
+  store.removeProblemFromEditCollection(idx);
 };
 
 const openYAMLForCreating = () => {
   openYAMLFile((text: string) => {
-    const err = store.loadMemorizeCollectionFromYAML(text);
+    const err = store.loadEditCollectionFromYAML(text);
     if (err) {
       useErrorStore().add(err);
       return;
@@ -329,11 +352,7 @@ const openYAMLForCreating = () => {
   background-color: var(--button-hover-bg-color);
 }
 .ctrl-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.ctrl-btn:disabled:hover {
-  background-color: var(--button-bg-color);
+  background: linear-gradient(to top, var(--disabled-control-button-bg-color) 80%, white 140%);
 }
 .ctrl-btn .icon {
   height: 16px;

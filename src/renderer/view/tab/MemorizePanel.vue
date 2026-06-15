@@ -12,6 +12,7 @@
       <button
         class="mode-tab"
         :class="{ active: panelMode === 'create' }"
+        :disabled="store.isSolving"
         @click="panelMode = 'create'"
       >
         問題を作成
@@ -25,6 +26,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { useStore } from "@/renderer/store";
 import SolvePanel from "@/renderer/view/tab/SolvePanel.vue";
 import CreatePanel from "@/renderer/view/tab/CreatePanel.vue";
 import { RectSize } from "@/common/assets/geometry.js";
@@ -36,6 +38,8 @@ defineProps({
     default: undefined,
   },
 });
+
+const store = useStore();
 
 type PanelMode = "solve" | "create";
 const panelMode = ref<PanelMode>("solve");
@@ -72,5 +76,12 @@ const panelMode = ref<PanelMode>("solve");
 .mode-tab.active {
   border-bottom-color: var(--tab-highlight-color);
   font-weight: bold;
+}
+.mode-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mode-tab:disabled:hover {
+  background: none;
 }
 </style>

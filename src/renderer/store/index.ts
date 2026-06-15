@@ -60,14 +60,15 @@ class Store {
   private _memorize: MemorizeManager;
 
   constructor() {
+    const refs = reactive(this);
+    this._reactive = refs;
     this._memorize = new MemorizeManager(this.recordManager, {
       setAppState: (state: AppState) => {
-        this._appState = state;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this._reactive as any).appState = state;
       },
       getAppState: () => this._appState,
     });
-    const refs = reactive(this);
-    this._reactive = refs;
     this.recordManager
       .on("changePosition", () => {
         this.onChangePositionHandlers.forEach((handler) => handler());
@@ -117,6 +118,46 @@ class Store {
     return this._memorize.memorizeStep;
   }
 
+  get memorizeHintCount(): number {
+    return this._memorize.memorizeHintCount;
+  }
+
+  get memorizeGiveUpCount(): number {
+    return this._memorize.memorizeGiveUpCount;
+  }
+
+  get memorizeTotalQuestions(): number {
+    return this._memorize.memorizeTotalQuestions;
+  }
+
+  get memorizeAccuracy(): number {
+    return this._memorize.memorizeAccuracy;
+  }
+
+  get problemCorrectMoves(): number {
+    return this._memorize.problemCorrectMoves;
+  }
+
+  get problemWrongMoves(): number {
+    return this._memorize.problemWrongMoves;
+  }
+
+  get problemTotalPlayerMoves(): number {
+    return this._memorize.problemTotalPlayerMoves;
+  }
+
+  get problemHintCount(): number {
+    return this._memorize.problemHintCount;
+  }
+
+  get problemGiveUpCount(): number {
+    return this._memorize.problemGiveUpCount;
+  }
+
+  get problemAccuracy(): number {
+    return this._memorize.problemAccuracy;
+  }
+
   get currentHint(): string | null {
     return this._memorize.currentHint;
   }
@@ -145,7 +186,7 @@ class Store {
     this._memorize.resetMemorizeStats();
   }
 
-  // === 問題集コレクション委譲 ===
+  // === 解答用問題集コレクション委譲 ===
 
   get memorizeCollection() {
     return this._memorize.memorizeCollection;
@@ -153,6 +194,16 @@ class Store {
 
   get memorizeCollectionPath() {
     return this._memorize.memorizeCollectionPath;
+  }
+
+  // === 作成用問題集コレクション委譲 ===
+
+  get editCollection() {
+    return this._memorize.editCollection;
+  }
+
+  get editCollectionPath() {
+    return this._memorize.editCollectionPath;
   }
 
   // === 解答セッション委譲 ===
@@ -171,6 +222,10 @@ class Store {
 
   get isSolving(): boolean {
     return this._memorize.isSolving;
+  }
+
+  get isGiveUp(): boolean {
+    return this._memorize.isGiveUp;
   }
 
   get skipCommonMoves(): boolean {
@@ -217,13 +272,17 @@ class Store {
     return this._memorize.editingProblemIndex;
   }
 
-  // ========== Memorize 委譲メソッド ==========
+  // ========== Memorize 委譲メソッド（解答用） ==========
 
-  startSolveSession(): void {
-    this._memorize.startSolveSession();
+  async startSolveSession(): Promise<void> {
+    await this._memorize.startSolveSession();
   }
 
-  nextProblem(): boolean {
+  async startCurrentSolveProblem(): Promise<void> {
+    await this._memorize.startCurrentSolveProblem();
+  }
+
+  async nextProblem(): Promise<boolean> {
     return this._memorize.nextProblem();
   }
 
@@ -231,70 +290,69 @@ class Store {
     this._memorize.endSolveSession();
   }
 
-  newMemorizeCollection(title: string, playerColor?: "black" | "white"): void {
-    this._memorize.newMemorizeCollection(title, playerColor);
-  }
-
-  updateMemorizeCollectionSettings(title: string, playerColor: "black" | "white"): void {
-    this._memorize.updateMemorizeCollectionSettings(title, playerColor);
-  }
-
-  addBranchAsProblem(name: string): boolean {
-    return this._memorize.addBranchAsProblem(name);
-  }
-
   loadMemorizeCollectionFromYAML(yaml: string): Error | undefined {
     return this._memorize.loadMemorizeCollectionFromYAML(yaml);
   }
 
-  saveMemorizeCollectionToYAML(): string | Error {
-    return this._memorize.saveMemorizeCollectionToYAML();
+  // ========== Memorize 委譲メソッド（作成用） ==========
+
+  newEditCollection(title: string, playerColor?: "black" | "white"): void {
+    this._memorize.newEditCollection(title, playerColor);
   }
 
-  importCurrentRecordAsProblems(): number {
-    return this._memorize.importCurrentRecordAsProblems();
+  updateEditCollectionSettings(title: string, playerColor: "black" | "white"): void {
+    this._memorize.updateEditCollectionSettings(title, playerColor);
   }
 
-  importRecordTextToCollection(
+  addBranchAsEditProblem(name: string): boolean {
+    return this._memorize.addBranchAsEditProblem(name);
+  }
+
+  loadEditCollectionFromYAML(yaml: string): Error | undefined {
+    return this._memorize.loadEditCollectionFromYAML(yaml);
+  }
+
+  saveEditCollectionToYAML(): string | Error {
+    return this._memorize.saveEditCollectionToYAML();
+  }
+
+  importRecordTextToEditCollection(
     data: string,
     sourceName: string,
+    includeComments?: boolean,
   ): { added: number; skipped: number } | null {
-    return this._memorize.importRecordTextToCollection(data, sourceName);
+    return this._memorize.importRecordTextToEditCollection(data, sourceName, includeComments);
   }
 
-  addProblemToCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
-    this._memorize.addProblemToCollection(problem);
+  addProblemToEditCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
+    this._memorize.addProblemToEditCollection(problem);
   }
 
-  removeProblemFromCollection(index: number): void {
-    this._memorize.removeProblemFromCollection(index);
+  removeProblemFromEditCollection(index: number): void {
+    this._memorize.removeProblemFromEditCollection(index);
   }
 
-  updateProblemInCollection(
+  updateProblemInEditCollection(
     index: number,
     problem: import("@/common/memorize/index.js").MemorizeProblem,
   ): void {
-    this._memorize.updateProblemInCollection(index, problem);
+    this._memorize.updateProblemInEditCollection(index, problem);
   }
 
-  loadProblemToRecord(index: number): void {
-    this._memorize.loadProblemToRecord(index);
+  loadEditProblemToRecord(index: number): void {
+    this._memorize.loadEditProblemToRecord(index);
   }
 
-  updateProblemFromRecord(): boolean {
-    return this._memorize.updateProblemFromRecord();
+  updateEditProblemFromRecord(): boolean {
+    return this._memorize.updateEditProblemFromRecord();
   }
 
-  renameEditingProblem(name: string): void {
-    this._memorize.renameEditingProblem(name);
+  renameEditProblem(name: string): void {
+    this._memorize.renameEditProblem(name);
   }
 
-  clearEditingProblem(): void {
-    this._memorize.clearEditingProblem();
-  }
-
-  startMemorizeFromNewProblem(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
-    this._memorize.startMemorizeFromNewProblem(problem);
+  clearEditProblem(): void {
+    this._memorize.clearEditProblem();
   }
 
   importKIFForMemorize(data: string): Error | undefined {
@@ -330,6 +388,25 @@ class Store {
 
   closeMemorizeSolveDialog(): void {
     this._isMemorizeSolveDialogVisible = false;
+  }
+
+  get isMemorizeResultDialogVisible(): boolean {
+    return this._isMemorizeResultDialogVisible;
+  }
+  private _isMemorizeResultDialogVisible = false;
+
+  get memorizeResultDialogMode(): "perProblem" | "overall" {
+    return this._memorizeResultDialogMode;
+  }
+  private _memorizeResultDialogMode: "perProblem" | "overall" = "perProblem";
+
+  showMemorizeResultDialog(mode: "perProblem" | "overall"): void {
+    this._memorizeResultDialogMode = mode;
+    this._isMemorizeResultDialogVisible = true;
+  }
+
+  closeMemorizeResultDialog(): void {
+    this._isMemorizeResultDialogVisible = false;
   }
 
   get isMemorizeCreateDialogVisible(): boolean {
@@ -419,6 +496,9 @@ class Store {
 
   get appState(): AppState {
     return this._appState;
+  }
+  set appState(state: AppState) {
+    this._appState = state;
   }
 
   get customLayout() {

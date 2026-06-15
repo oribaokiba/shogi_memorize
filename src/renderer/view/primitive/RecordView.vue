@@ -1,16 +1,36 @@
 <template>
   <div class="full column record-view" :class="{ limited: showTopControl }">
     <div v-show="showTopControl" class="row control">
-      <button :disabled="!operational" :data-hotkey="shortcutKeys.Begin" @click="goBegin">
+      <button
+        :disabled="!operational"
+        :class="{ 'disabled-look': !operational }"
+        :data-hotkey="shortcutKeys.Begin"
+        @click="goBegin"
+      >
         <Icon :icon="IconType.FIRST" />
       </button>
-      <button :disabled="!operational" :data-hotkey="shortcutKeys.Back" @click="goBack()">
+      <button
+        :disabled="!operational"
+        :class="{ 'disabled-look': !operational }"
+        :data-hotkey="shortcutKeys.Back"
+        @click="goBack()"
+      >
         <Icon :icon="IconType.BACK" />
       </button>
-      <button :disabled="!operational" :data-hotkey="shortcutKeys.Forward" @click="goForward">
+      <button
+        :disabled="!operational"
+        :class="{ 'disabled-look': !operational }"
+        :data-hotkey="shortcutKeys.Forward"
+        @click="goForward"
+      >
         <Icon :icon="IconType.NEXT" />
       </button>
-      <button :disabled="!operational" :data-hotkey="shortcutKeys.End" @click="goEnd">
+      <button
+        :disabled="!operational"
+        :class="{ 'disabled-look': !operational }"
+        :data-hotkey="shortcutKeys.End"
+        @click="goEnd"
+      >
         <Icon :icon="IconType.LAST" />
       </button>
     </div>
@@ -386,6 +406,13 @@ onUpdated(() => {
   width: 100%;
   padding: 2px;
 }
+.branch-bottom-control:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.branch-bottom-control:disabled:hover {
+  background: none;
+}
 .branch-side-control {
   width: 40px;
   height: 100%;
@@ -394,6 +421,13 @@ onUpdated(() => {
   height: 50%;
   width: 100%;
   padding: 0;
+}
+.branch-side-control button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.branch-side-control button:disabled:hover {
+  background: none;
 }
 .branch-side-control button .icon {
   height: 40px;

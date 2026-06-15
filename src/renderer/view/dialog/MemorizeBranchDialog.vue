@@ -40,7 +40,7 @@ const onCreate = () => {
   if (!n) {
     return;
   }
-  const ok = store.addBranchAsProblem(n);
+  const ok = store.addBranchAsEditProblem(n);
   if (!ok) {
     return;
   }

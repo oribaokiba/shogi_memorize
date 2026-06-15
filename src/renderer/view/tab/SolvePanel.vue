@@ -35,31 +35,15 @@
             <Icon :icon="IconType.HELP" />
             <span class="hint-text">{{ store.currentHint }}</span>
           </div>
-          <div v-if="isSolveCleared" class="clear">
-            <Icon :icon="IconType.CHECK" />
-            <span>クリアしました！</span>
-          </div>
-          <div v-if="isGiveUpCleared" class="clear give-up">
-            <Icon :icon="IconType.END" />
-            <span>次の手に進みました</span>
-          </div>
           <div class="solve-buttons">
             <button class="ctrl-btn" :disabled="!hasHint || disableActions" @click="showHint">
               <Icon :icon="IconType.HELP" /><span>ヒント</span>
             </button>
-            <button class="ctrl-btn" @click="restartSolveProblem">
-              <Icon :icon="IconType.REFRESH" /><span>最初から</span>
-            </button>
             <button class="ctrl-btn" :disabled="disableActions" @click="giveUpSolveProblem">
               <Icon :icon="IconType.END" /><span>次の手</span>
             </button>
-            <button class="ctrl-btn stop-btn" @click="endSolve">
+            <button class="ctrl-btn stop-btn" @click="endSolveWithResult">
               <Icon :icon="IconType.CLOSE" /><span>解答終了</span>
-            </button>
-          </div>
-          <div v-if="isCleared && !isLastProblem" class="next-buttons">
-            <button class="ctrl-btn next-btn" @click="goToNextProblem">
-              <Icon :icon="IconType.NEXT" /><span>次の問題へ</span>
             </button>
           </div>
         </div>
@@ -87,7 +71,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useStore } from "@/renderer/store";
-//import { useMessageStore } from "@/renderer/store/message";
 import { useErrorStore } from "@/renderer/store/error";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
@@ -127,6 +110,9 @@ const isSolveCleared = computed(() => {
 });
 
 const isGiveUpCleared = computed(() => {
+  if (!store.isGiveUp) {
+    return false;
+  }
   const len = currentProblemMovesLength.value;
   if (len === 0) {
     return false;
@@ -135,11 +121,7 @@ const isGiveUpCleared = computed(() => {
 });
 
 const isCleared = computed(() => {
-  return isSolveCleared.value;
-});
-
-const isLastProblem = computed(() => {
-  return store.solveIndex >= store.solveTotal - 1;
+  return isSolveCleared.value || isGiveUpCleared.value;
 });
 
 const disableActions = computed(() => {
@@ -160,29 +142,27 @@ watch(
   },
 );
 
+// クリアを検知して結果ダイアログを表示
+watch(
+  () => isCleared.value,
+  (newVal) => {
+    if (newVal) {
+      store.showMemorizeResultDialog("perProblem");
+    }
+  },
+);
+
 const showHint = () => {
   hintVisible.value = true;
-};
-
-const restartSolveProblem = () => {
-  hintVisible.value = false;
-  const problem = store.currentCollectionProblem;
-  if (problem) {
-    store.closeMemorizeSolveDialog();
-    store.startSolveSession();
-  }
+  store.memorize.incrementHintCount();
 };
 
 const giveUpSolveProblem = () => {
   store.giveUpMemorize();
 };
 
-const goToNextProblem = () => {
-  hintVisible.value = false;
-  store.nextProblem();
-};
-
-const endSolve = () => {
+const endSolveWithResult = () => {
+  store.showMemorizeResultDialog("overall");
   store.endSolveSession();
 };
 
@@ -203,7 +183,7 @@ const openMemorizeSolveDialog = () => {
 <style scoped>
 .root {
   color: var(--text-color);
-  background-color: var(--text-bg-color);
+  background-color: var(--main-bg-color);
   width: 100%;
   height: 100%;
 }
@@ -306,21 +286,6 @@ const openMemorizeSolveDialog = () => {
 .hint-text {
   color: var(--text-color);
 }
-.clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 0.9em;
-  font-weight: bold;
-  color: #4caf50;
-  margin-bottom: 8px;
-}
-.clear .icon {
-  height: 18px;
-  width: auto;
-  display: inline-block;
-}
 .solve-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -353,11 +318,10 @@ const openMemorizeSolveDialog = () => {
   background-color: var(--button-hover-bg-color);
 }
 .ctrl-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  background: linear-gradient(to top, var(--disabled-control-button-bg-color) 80%, white 140%);
 }
 .ctrl-btn:disabled:hover {
-  background-color: var(--button-bg-color);
+  background: linear-gradient(to top, var(--disabled-control-button-bg-color) 80%, white 140%);
 }
 .ctrl-btn .icon {
   height: 16px;

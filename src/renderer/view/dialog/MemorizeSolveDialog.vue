@@ -82,12 +82,12 @@ const onChangeSkipCommonMoves = (v: boolean) => {
   store.dialogSkipCommonMoves = skipCommonMoves.value;
 };
 
-const onStart = () => {
+const onStart = async () => {
   store.dialogRandomOrder = isRandomOrder.value;
   store.dialogMaxQuestions = maxQuestions.value;
   store.dialogSkipCommonMoves = skipCommonMoves.value;
   store.closeMemorizeSolveDialog();
-  store.startSolveSession();
+  await store.startSolveSession();
 };
 
 const onCancel = () => {

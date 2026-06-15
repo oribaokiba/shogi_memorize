@@ -3,11 +3,19 @@ import {
   ImmutableNode,
   ImmutableRecord,
   importKIF,
+  importKI2,
+  importCSA,
+  importJKFString,
   Move,
   Position,
+  Record,
+  RecordFormatType,
+  detectRecordFormat,
   Move as TsshogiMove,
 } from "tsshogi";
-import { playPieceBeat } from "@/renderer/devices/audio.js";
+import { localizeError, t } from "@/common/i18n/index.js";
+
+import { playPieceBeat, beepShort } from "@/renderer/devices/audio.js";
 import { RecordManager } from "@/renderer/record/manager.js";
 import { AppState } from "@/common/control/state.js";
 import { useMessageStore } from "./message.js";
@@ -38,12 +46,29 @@ export class MemorizeManager {
   private _memorizeStep = 0;
   private _memorizePlayerColor?: Color;
   private _isMemorizeProcessing = false;
+  /** 解答用コレクション */
   private _memorizeCollection: MemorizeCollection | null = null;
+  /** 作成用コレクション（解答用とは独立） */
+  private _editCollection: MemorizeCollection | null = null;
   private _memorizeCollectionPath: string | null = null;
+  private _editCollectionPath: string | null = null;
   private _editingProblemIndex = -1;
   private _reviewMistakes: { problemIndex: number; moveIndex: number }[] = [];
   private _memorizeCorrectCount = 0;
   private _memorizeWrongCount = 0;
+  private _isGiveUp = false;
+
+  // 結果表示用統計
+  private _memorizeHintCount = 0;
+  private _memorizeGiveUpCount = 0;
+  private _memorizeTotalQuestions = 0;
+
+  // 個別問題の統計（startCurrentSolveProblemでリセット）
+  private _problemCorrectMoves = 0;
+  private _problemWrongMoves = 0;
+  private _problemHintCount = 0;
+  private _problemGiveUpCount = 0;
+  private _problemTotalPlayerMoves = 0;
 
   // 解答セッション管理
   private _solveOrder: number[] = [];
@@ -92,6 +117,55 @@ export class MemorizeManager {
     return this._memorizeStep;
   }
 
+  get memorizeHintCount(): number {
+    return this._memorizeHintCount;
+  }
+
+  get memorizeGiveUpCount(): number {
+    return this._memorizeGiveUpCount;
+  }
+
+  get memorizeTotalQuestions(): number {
+    return this._memorizeTotalQuestions;
+  }
+
+  get memorizeAccuracy(): number {
+    const total = this._memorizeCorrectCount + this._memorizeWrongCount;
+    if (total === 0) {
+      return 100;
+    }
+    return Math.round((this._memorizeCorrectCount / total) * 100);
+  }
+
+  // 個別問題の統計
+  get problemCorrectMoves(): number {
+    return this._problemCorrectMoves;
+  }
+
+  get problemWrongMoves(): number {
+    return this._problemWrongMoves;
+  }
+
+  get problemTotalPlayerMoves(): number {
+    return this._problemTotalPlayerMoves;
+  }
+
+  get problemHintCount(): number {
+    return this._problemHintCount;
+  }
+
+  get problemGiveUpCount(): number {
+    return this._problemGiveUpCount;
+  }
+
+  get problemAccuracy(): number {
+    const total = this._problemCorrectMoves + this._problemWrongMoves;
+    if (total === 0) {
+      return 100;
+    }
+    return Math.round((this._problemCorrectMoves / total) * 100);
+  }
+
   get currentHint(): string | null {
     if (!this._memorizeCollection) {
       return null;
@@ -124,7 +198,7 @@ export class MemorizeManager {
     return this._isMemorizeProcessing;
   }
 
-  // === 問題集コレクション管理 ===
+  // === 解答用問題集コレクション管理 ===
 
   get memorizeCollection(): MemorizeCollection | null {
     return this._memorizeCollection;
@@ -132,6 +206,16 @@ export class MemorizeManager {
 
   get memorizeCollectionPath(): string | null {
     return this._memorizeCollectionPath;
+  }
+
+  // === 作成用問題集コレクション管理 ===
+
+  get editCollection(): MemorizeCollection | null {
+    return this._editCollection;
+  }
+
+  get editCollectionPath(): string | null {
+    return this._editCollectionPath;
   }
 
   // === 解答セッション管理 ===
@@ -150,6 +234,10 @@ export class MemorizeManager {
 
   get isSolving(): boolean {
     return this._isSolving;
+  }
+
+  get isGiveUp(): boolean {
+    return this._isGiveUp;
   }
 
   get skipCommonMoves(): boolean {
@@ -206,7 +294,15 @@ export class MemorizeManager {
   resetMemorizeStats(): void {
     this._memorizeCorrectCount = 0;
     this._memorizeWrongCount = 0;
+    this._memorizeHintCount = 0;
+    this._memorizeGiveUpCount = 0;
+    this._memorizeTotalQuestions = 0;
     this._reviewMistakes = [];
+  }
+
+  incrementHintCount(): void {
+    this._memorizeHintCount++;
+    this._problemHintCount++;
   }
 
   // ========== 解答セッション ==========
@@ -232,19 +328,32 @@ export class MemorizeManager {
     this._solveTotal = this._solveOrder.length;
   }
 
-  startSolveSession(): void {
+  async startSolveSession(): Promise<void> {
     if (!this._memorizeCollection || this._memorizeCollection.problems.length === 0) {
       return;
     }
     this.buildSolveOrder();
+    this._memorizeTotalQuestions = 0;
+    this._memorizeCorrectCount = 0;
+    this._memorizeWrongCount = 0;
+    this._memorizeHintCount = 0;
+    this._memorizeGiveUpCount = 0;
     this._skipCommonMoves = this._dialogSkipCommonMoves;
     this._clearedPaths.clear();
     this._isSolving = true;
     this.setAppState(AppState.MEMORIZE);
-    this.startCurrentSolveProblem();
+    await this.startCurrentSolveProblem();
   }
 
-  private startCurrentSolveProblem(): void {
+  async startCurrentSolveProblem(): Promise<void> {
+    this._isGiveUp = false;
+    // 個別問題統計をリセット
+    this._problemCorrectMoves = 0;
+    this._problemWrongMoves = 0;
+    this._problemHintCount = 0;
+    this._problemGiveUpCount = 0;
+    this._problemTotalPlayerMoves = 0;
+
     const problem = this.currentCollectionProblem;
     if (!problem || !this._memorizeCollection) {
       return;
@@ -269,6 +378,11 @@ export class MemorizeManager {
       pos.doMove(move);
     }
 
+    // プレイヤーの総手番数を計算（problem.playerColorと一致する手の数）
+    this._problemTotalPlayerMoves = moveObjects.filter(
+      (m) => m.color === problem.playerColor,
+    ).length;
+
     this._memorizeProblems = [
       {
         name: problem.name,
@@ -284,17 +398,17 @@ export class MemorizeManager {
     this._recordManager.resetBySFEN(problem.sfen);
 
     if (this._skipCommonMoves) {
-      this.skipMovesForward(problem, moveObjects);
+      await this.skipMovesForward(problem, moveObjects);
     } else if (moveObjects.length > 0 && moveObjects[0].color !== problem.playerColor) {
       this._recordManager.appendMove({ move: moveObjects[0] });
       this._memorizeStep = 1;
     }
   }
 
-  private skipMovesForward(
+  private async skipMovesForward(
     _problem: import("@/common/memorize/index.js").MemorizeProblem,
     moveObjects: Move[],
-  ): void {
+  ): Promise<void> {
     const sfen = _problem.sfen;
     const moves = _problem.moves;
     let skipCount = 0;
@@ -321,22 +435,25 @@ export class MemorizeManager {
 
     const playerColor = _problem.playerColor;
     if (step < moveObjects.length && moveObjects[step].color !== playerColor) {
+      await this.sleep(400);
       this._recordManager.appendMove({ move: moveObjects[step] });
       this._memorizeStep = step + 1;
     }
   }
 
-  nextProblem(): boolean {
+  async nextProblem(): Promise<boolean> {
     if (!this._isSolving) {
       return false;
     }
+    // 現在の問題をクリア済みとして記録する（次の問題で共通手順をスキップするため）
+    this.recordClearedProblem();
     this._solveIndex++;
     if (this._solveIndex >= this._solveTotal) {
       this.endSolveSession();
       useMessageStore().enqueue({ text: "全問終了しました！" });
       return false;
     }
-    this.startCurrentSolveProblem();
+    await this.startCurrentSolveProblem();
     return true;
   }
 
@@ -358,32 +475,242 @@ export class MemorizeManager {
     this._recordManager.reset();
   }
 
-  // ========== 問題集コレクション管理 ==========
+  // ========== 解答用問題集コレクション管理 ==========
 
-  newMemorizeCollection(title: string, playerColor?: "black" | "white"): void {
-    this._memorizeCollection = {
-      version: 1,
-      title,
-      playerColor: playerColor || "black",
-      problems: [],
-    };
+  loadMemorizeCollectionFromYAML(yaml: string): Error | undefined {
+    if (this._isSolving) {
+      return new Error("解答セッション中は問題集の読み込みはできません");
+    }
+    const result = loadMemorizeCollection(yaml);
+    if (result instanceof Error) {
+      return result;
+    }
+    this._memorizeCollection = result;
     this._memorizeCollectionPath = null;
     this._memorizeProblems = [];
     this._currentProblemIndex = -1;
     this._memorizeStep = 0;
     this.setAppState(AppState.NORMAL);
+    return undefined;
   }
 
-  updateMemorizeCollectionSettings(title: string, playerColor: "black" | "white"): void {
-    if (!this._memorizeCollection) {
+  // ========== 作成用問題集コレクション管理 ==========
+
+  newEditCollection(title: string, playerColor?: "black" | "white"): void {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は新規作成できません"));
       return;
     }
-    this._memorizeCollection.title = title;
-    this._memorizeCollection.playerColor = playerColor;
+    this._editCollection = {
+      version: 1,
+      title,
+      playerColor: playerColor || "black",
+      problems: [],
+    };
+    this._editCollectionPath = null;
+    this._memorizeProblems = [];
+    this._currentProblemIndex = -1;
+    this._memorizeStep = 0;
+    this._editingProblemIndex = -1;
+    this.setAppState(AppState.NORMAL);
   }
 
-  addBranchAsProblem(name: string): boolean {
-    if (!this._memorizeCollection) {
+  updateEditCollectionSettings(title: string, playerColor: "black" | "white"): void {
+    if (!this._editCollection) {
+      return;
+    }
+    this._editCollection.title = title;
+    this._editCollection.playerColor = playerColor;
+  }
+
+  loadEditCollectionFromYAML(yaml: string): Error | undefined {
+    if (this._isSolving) {
+      return new Error("解答セッション中は問題集の作成・編集はできません");
+    }
+    const result = loadMemorizeCollection(yaml);
+    if (result instanceof Error) {
+      return result;
+    }
+    this._editCollection = result;
+    this._editCollectionPath = null;
+    this._memorizeProblems = [];
+    this._currentProblemIndex = -1;
+    this._memorizeStep = 0;
+    this._editingProblemIndex = -1;
+    this.setAppState(AppState.NORMAL);
+    return undefined;
+  }
+
+  saveEditCollectionToYAML(): string | Error {
+    if (!this._editCollection) {
+      return new Error("問題集が作成されていません");
+    }
+    return saveMemorizeCollection(this._editCollection);
+  }
+
+  private isDuplicateEditProblem(sfen: string, playerColor: Color, moves: string[]): boolean {
+    if (!this._editCollection) {
+      return false;
+    }
+    return this._editCollection.problems.some(
+      (p) =>
+        p.sfen === sfen &&
+        p.playerColor === playerColor &&
+        p.moves.length === moves.length &&
+        p.moves.every((m, i) => m === moves[i]),
+    );
+  }
+
+  importCurrentRecordAsEditProblems(): number {
+    if (!this._editCollection) {
+      return 0;
+    }
+    const sfen = this._recordManager.record.initialPosition.sfen;
+    const problems = this.extractNewEditProblems(this._recordManager.record, sfen, true);
+    let addedCount = 0;
+    for (const problem of problems) {
+      if (!this.isDuplicateEditProblem(problem.sfen, problem.playerColor, problem.moves)) {
+        this._editCollection.problems.push(problem);
+        addedCount++;
+      }
+    }
+    return addedCount;
+  }
+
+  private extractNewEditProblems(
+    record: ImmutableRecord,
+    sfen: string,
+    includeComments: boolean,
+  ): import("@/common/memorize/index.js").MemorizeProblem[] {
+    const collection = this._editCollection;
+    if (!collection) {
+      return [];
+    }
+    const playerColor = collection.playerColor === "white" ? Color.WHITE : Color.BLACK;
+    const baseNameIndex = collection.problems.length;
+    const problems: import("@/common/memorize/index.js").MemorizeProblem[] = [];
+
+    const dfs = (node: ImmutableNode, pathUSI: string[], pathComments: (string | null)[]) => {
+      const currentPath = [...pathUSI];
+      const currentComments = [...pathComments];
+      if (node.move && node.move instanceof TsshogiMove) {
+        currentPath.push(node.move.usi);
+        currentComments.push(node.comment || null);
+      }
+
+      const children: ImmutableNode[] = [];
+      let child = node.next;
+      while (child) {
+        children.push(child);
+        child = child.branch;
+      }
+
+      if (children.length === 0) {
+        if (currentPath.length > 0) {
+          const hints: { index: number; text: string }[] = [];
+          if (includeComments) {
+            currentComments.forEach((text, idx) => {
+              if (text && text.trim()) {
+                hints.push({ index: idx, text: text.trim() });
+              }
+            });
+          }
+
+          problems.push({
+            name: `${baseNameIndex + problems.length + 1}. 問題`,
+            sfen,
+            playerColor,
+            moves: currentPath,
+            hints: hints.length > 0 ? hints : undefined,
+          });
+        }
+        return;
+      }
+
+      children.forEach((child) => {
+        dfs(child, currentPath, currentComments);
+      });
+    };
+
+    dfs(record.first, [], []);
+    return problems;
+  }
+
+  importRecordTextToEditCollection(
+    data: string,
+    sourceName: string,
+    includeComments?: boolean,
+  ): { added: number; skipped: number } | null {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
+      return null;
+    }
+    if (!this._editCollection) {
+      useErrorStore().add(new Error("問題集が作成されていません"));
+      return null;
+    }
+
+    // RecordManager を経由せず直接パースする（棋譜パネルの表示を変更しないため）
+    const format = detectRecordFormat(data);
+    let recordOrError: Record | Error;
+    switch (format) {
+      case RecordFormatType.SFEN: {
+        const position = Position.newBySFEN(data);
+        recordOrError = position ? new Record(position) : new Error(t.failedToParseSFEN);
+        break;
+      }
+      case RecordFormatType.USI:
+        recordOrError = Record.newByUSI(data);
+        break;
+      case RecordFormatType.KIF:
+        recordOrError = importKIF(data);
+        break;
+      case RecordFormatType.KI2:
+        recordOrError = importKI2(data);
+        break;
+      case RecordFormatType.CSA:
+        recordOrError = importCSA(data);
+        break;
+      case RecordFormatType.JKF:
+        recordOrError = importJKFString(data);
+        break;
+      case RecordFormatType.USEN:
+        recordOrError = Record.newByUSEN(data);
+        break;
+      default:
+        recordOrError = new Error(t.failedToDetectRecordFormat);
+        break;
+    }
+    if (recordOrError instanceof Error) {
+      useErrorStore().add(
+        new Error(
+          `棋譜の読み込みに失敗しました (${sourceName}): ${localizeError(recordOrError).message}`,
+        ),
+      );
+      return null;
+    }
+    const record = recordOrError;
+    const sfen = record.initialPosition.sfen;
+    const problems = this.extractNewEditProblems(record, sfen, includeComments !== false);
+    let addedCount = 0;
+    let skippedCount = 0;
+    for (const problem of problems) {
+      if (!this.isDuplicateEditProblem(problem.sfen, problem.playerColor, problem.moves)) {
+        this._editCollection.problems.push(problem);
+        addedCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+    return { added: addedCount, skipped: skippedCount };
+  }
+
+  addBranchAsEditProblem(name: string): boolean {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
+      return false;
+    }
+    if (!this._editCollection) {
       return false;
     }
 
@@ -487,8 +814,7 @@ export class MemorizeManager {
       }
     });
 
-    const playerColor =
-      this._memorizeCollection.playerColor === "white" ? Color.WHITE : Color.BLACK;
+    const playerColor = this._editCollection.playerColor === "white" ? Color.WHITE : Color.BLACK;
     const problem: import("@/common/memorize/index.js").MemorizeProblem = {
       name,
       sfen,
@@ -496,216 +822,37 @@ export class MemorizeManager {
       moves: fullPathUSI,
       hints: hints.length > 0 ? hints : undefined,
     };
-    this._memorizeCollection.problems.push(problem);
+    this._editCollection.problems.push(problem);
     return true;
   }
 
-  loadMemorizeCollectionFromYAML(yaml: string): Error | undefined {
-    const result = loadMemorizeCollection(yaml);
-    if (result instanceof Error) {
-      return result;
-    }
-    this._memorizeCollection = result;
-    this._memorizeCollectionPath = null;
-    this._memorizeProblems = [];
-    this._currentProblemIndex = -1;
-    this._memorizeStep = 0;
-    this.setAppState(AppState.NORMAL);
-    return undefined;
-  }
-
-  saveMemorizeCollectionToYAML(): string | Error {
-    if (!this._memorizeCollection) {
-      return new Error("問題集が読み込まれていません");
-    }
-    return saveMemorizeCollection(this._memorizeCollection);
-  }
-
-  private isDuplicateProblem(sfen: string, playerColor: Color, moves: string[]): boolean {
-    if (!this._memorizeCollection) {
-      return false;
-    }
-    return this._memorizeCollection.problems.some(
-      (p) =>
-        p.sfen === sfen &&
-        p.playerColor === playerColor &&
-        p.moves.length === moves.length &&
-        p.moves.every((m, i) => m === moves[i]),
-    );
-  }
-
-  importCurrentRecordAsProblems(): number {
-    if (!this._memorizeCollection) {
-      return 0;
-    }
-    const sfen = this._recordManager.record.initialPosition.sfen;
-    const problems = this.extractNewProblems(this._recordManager.record, sfen);
-    let addedCount = 0;
-    for (const problem of problems) {
-      if (!this.isDuplicateProblem(problem.sfen, problem.playerColor, problem.moves)) {
-        this._memorizeCollection.problems.push(problem);
-        addedCount++;
-      }
-    }
-    return addedCount;
-  }
-
-  private extractNewProblems(
-    record: ImmutableRecord,
-    sfen: string,
-  ): import("@/common/memorize/index.js").MemorizeProblem[] {
-    const problems: import("@/common/memorize/index.js").MemorizeProblem[] = [];
-
-    const dfs = (node: ImmutableNode, pathUSI: string[], pathComments: (string | null)[]) => {
-      const currentPath = [...pathUSI];
-      const currentComments = [...pathComments];
-      if (node.move && node.move instanceof TsshogiMove) {
-        currentPath.push(node.move.usi);
-        currentComments.push(node.comment || null);
-      }
-
-      const children: ImmutableNode[] = [];
-      let child = node.next;
-      while (child) {
-        children.push(child);
-        child = child.branch;
-      }
-
-      if (children.length === 0) {
-        if (currentPath.length > 0) {
-          const pColor = currentPath.length % 2 === 0 ? Color.WHITE : Color.BLACK;
-
-          const hints: { index: number; text: string }[] = [];
-          currentComments.forEach((text, idx) => {
-            if (text && text.trim()) {
-              hints.push({ index: idx, text: text.trim() });
-            }
-          });
-
-          problems.push({
-            name: `${this._memorizeCollection!.problems.length + problems.length + 1}. 問題`,
-            sfen,
-            playerColor: pColor,
-            moves: currentPath,
-            hints: hints.length > 0 ? hints : undefined,
-          });
-        }
-        return;
-      }
-
-      children.forEach((child) => {
-        dfs(child, currentPath, currentComments);
-      });
-    };
-
-    dfs(record.first, [], []);
-    return problems;
-  }
-
-  startMemorizeFromNewProblem(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
-    this._memorizeProblems = [];
-    this._currentProblemIndex = -1;
-    this._memorizeStep = 0;
-    this._memorizePlayerColor = undefined;
-    this._isMemorizeProcessing = false;
-
-    const pos = Position.newBySFEN(problem.sfen);
-    if (!pos) {
-      useErrorStore().add(new Error("問題の初期局面(SFEN)が正しくありません"));
+  addProblemToEditCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
       return;
     }
-
-    const moveObjects: Move[] = [];
-    for (const usi of problem.moves) {
-      const move = pos.createMoveByUSI(usi);
-      if (!move) {
-        useErrorStore().add(
-          new Error(`問題 ${problem.name} の${moveObjects.length + 1}手目 (${usi}) が不正です`),
-        );
-        return;
-      }
-      moveObjects.push(move);
-      pos.doMove(move);
-    }
-
-    this._memorizeProblems = [
-      {
-        name: problem.name,
-        moves: moveObjects,
-        playerColor: problem.playerColor,
-      },
-    ];
-    this._currentProblemIndex = 0;
-    this._memorizeStep = 0;
-    this._memorizePlayerColor = problem.playerColor;
-    this._isMemorizeProcessing = false;
-    this.setAppState(AppState.MEMORIZE);
-
-    this._recordManager.resetBySFEN(problem.sfen);
-
-    if (moveObjects.length > 0 && moveObjects[0].color !== problem.playerColor) {
-      this._recordManager.appendMove({ move: moveObjects[0] });
-      this._memorizeStep = 1;
-    }
-  }
-
-  importRecordTextToCollection(
-    data: string,
-    sourceName: string,
-  ): { added: number; skipped: number } | null {
-    if (!this._memorizeCollection) {
-      useErrorStore().add(new Error("問題集が作成されていません"));
-      return null;
-    }
-    const error = this._recordManager.importRecord(data, {});
-    if (error) {
-      useErrorStore().add(
-        new Error(`棋譜の読み込みに失敗しました (${sourceName}): ${error.message}`),
-      );
-      return null;
-    }
-    const sfen = this._recordManager.record.initialPosition.sfen;
-    const problems = this.extractNewProblems(this._recordManager.record, sfen);
-    let addedCount = 0;
-    let skippedCount = 0;
-    for (const problem of problems) {
-      if (!this.isDuplicateProblem(problem.sfen, problem.playerColor, problem.moves)) {
-        this._memorizeCollection.problems.push(problem);
-        addedCount++;
-      } else {
-        skippedCount++;
-      }
-    }
-    return { added: addedCount, skipped: skippedCount };
-  }
-
-  addProblemToCollection(problem: import("@/common/memorize/index.js").MemorizeProblem): void {
-    if (!this._memorizeCollection) {
+    if (!this._editCollection) {
       return;
     }
-    this._memorizeCollection.problems.push(problem);
+    this._editCollection.problems.push(problem);
   }
 
-  removeProblemFromCollection(index: number): void {
-    if (
-      !this._memorizeCollection ||
-      index < 0 ||
-      index >= this._memorizeCollection.problems.length
-    ) {
+  removeProblemFromEditCollection(index: number): void {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
       return;
     }
-    const problemName = this._memorizeCollection.problems[index].name;
+    if (!this._editCollection || index < 0 || index >= this._editCollection.problems.length) {
+      return;
+    }
+    const problemName = this._editCollection.problems[index].name;
     this.showConfirmation({
       message: `問題「${problemName}」を削除してもよろしいですか？`,
       onOk: () => {
-        if (
-          !this._memorizeCollection ||
-          index < 0 ||
-          index >= this._memorizeCollection.problems.length
-        ) {
+        if (!this._editCollection || index < 0 || index >= this._editCollection.problems.length) {
           return;
         }
-        this._memorizeCollection.problems.splice(index, 1);
+        this._editCollection.problems.splice(index, 1);
         if (this._editingProblemIndex === index) {
           this._editingProblemIndex = -1;
         } else if (this._editingProblemIndex > index) {
@@ -715,29 +862,29 @@ export class MemorizeManager {
     });
   }
 
-  updateProblemInCollection(
+  updateProblemInEditCollection(
     index: number,
     problem: import("@/common/memorize/index.js").MemorizeProblem,
   ): void {
-    if (
-      !this._memorizeCollection ||
-      index < 0 ||
-      index >= this._memorizeCollection.problems.length
-    ) {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
       return;
     }
-    this._memorizeCollection.problems[index] = problem;
+    if (!this._editCollection || index < 0 || index >= this._editCollection.problems.length) {
+      return;
+    }
+    this._editCollection.problems[index] = problem;
   }
 
-  loadProblemToRecord(index: number): void {
-    if (
-      !this._memorizeCollection ||
-      index < 0 ||
-      index >= this._memorizeCollection.problems.length
-    ) {
+  loadEditProblemToRecord(index: number): void {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
       return;
     }
-    const problem = this._memorizeCollection.problems[index];
+    if (!this._editCollection || index < 0 || index >= this._editCollection.problems.length) {
+      return;
+    }
+    const problem = this._editCollection.problems[index];
 
     this._recordManager.resetBySFEN(problem.sfen);
 
@@ -768,15 +915,19 @@ export class MemorizeManager {
     this._editingProblemIndex = index;
   }
 
-  updateProblemFromRecord(): boolean {
-    if (!this._memorizeCollection || this._editingProblemIndex < 0) {
+  updateEditProblemFromRecord(): boolean {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
+      return false;
+    }
+    if (!this._editCollection || this._editingProblemIndex < 0) {
       return false;
     }
 
     const record = this._recordManager.record;
     const sfen = record.initialPosition.sfen;
     const current = record.current;
-    const oldProblem = this._memorizeCollection.problems[this._editingProblemIndex];
+    const oldProblem = this._editCollection.problems[this._editingProblemIndex];
 
     const pathUSI: string[] = [];
     const pathComments: (string | null)[] = [];
@@ -885,23 +1036,27 @@ export class MemorizeManager {
       hints: hints.length > 0 ? hints : undefined,
     };
 
-    this._memorizeCollection.problems[this._editingProblemIndex] = updatedProblem;
+    this._editCollection.problems[this._editingProblemIndex] = updatedProblem;
     this._editingProblemIndex = -1;
     return true;
   }
 
-  renameEditingProblem(name: string): void {
-    if (!this._memorizeCollection || this._editingProblemIndex < 0) {
+  renameEditProblem(name: string): void {
+    if (this._isSolving) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
       return;
     }
-    this._memorizeCollection.problems[this._editingProblemIndex].name = name;
+    if (!this._editCollection || this._editingProblemIndex < 0) {
+      return;
+    }
+    this._editCollection.problems[this._editingProblemIndex].name = name;
   }
 
-  clearEditingProblem(): void {
+  clearEditProblem(): void {
     this._editingProblemIndex = -1;
   }
 
-  // ========== 旧形式メモライズ ==========
+  // ========== 旧形式メモライズ（解答用、互換性維持） ==========
 
   importKIFForMemorize(data: string): Error | undefined {
     const recordOrError = importKIF(data);
@@ -959,6 +1114,7 @@ export class MemorizeManager {
     const isCorrect = move.equals(expectedMove);
 
     if (isCorrect) {
+      this._problemCorrectMoves++;
       this._recordManager.appendMove({ move });
       try {
         playPieceBeat(useAppSettings().pieceVolume);
@@ -968,8 +1124,9 @@ export class MemorizeManager {
       this._memorizeStep++;
 
       if (this._memorizeStep >= problem.moves.length) {
-        this.recordClearedProblem();
-        useMessageStore().enqueue({ text: "正解です！クリアしました！" });
+        this._memorizeCorrectCount += this._problemCorrectMoves;
+        this._memorizeWrongCount += this._problemWrongMoves;
+        this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
         return;
       }
 
@@ -995,13 +1152,18 @@ export class MemorizeManager {
         this._isMemorizeProcessing = false;
 
         if (this._memorizeStep >= problem.moves.length) {
-          this.recordClearedProblem();
-          useMessageStore().enqueue({ text: "正解です！クリアしました！" });
+          this._memorizeCorrectCount += this._problemCorrectMoves;
+          this._memorizeWrongCount += this._problemWrongMoves;
+          this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
         }
       }
     } else {
+      this._problemWrongMoves++;
       try {
-        playPieceBeat(useAppSettings().pieceVolume);
+        beepShort({
+          frequency: 400,
+          volume: useAppSettings().pieceVolume,
+        });
       } catch {
         // ignore
       }
@@ -1026,6 +1188,9 @@ export class MemorizeManager {
     if (this.getAppState() !== AppState.MEMORIZE || !problem || this._isMemorizeProcessing) {
       return;
     }
+    this._isGiveUp = true;
+    this._memorizeGiveUpCount++;
+    this._problemGiveUpCount++;
     const expectedMove = problem.moves[this._memorizeStep];
     if (!expectedMove) {
       return;
@@ -1040,7 +1205,6 @@ export class MemorizeManager {
     this._memorizeStep++;
 
     if (this._memorizeStep >= problem.moves.length) {
-      useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
       return;
     }
 
@@ -1064,10 +1228,6 @@ export class MemorizeManager {
       }
       this._memorizeStep++;
       this._isMemorizeProcessing = false;
-
-      if (this._memorizeStep >= problem.moves.length) {
-        useMessageStore().enqueue({ text: "クリアしました！（ギブアップ）" });
-      }
     }
   }
 
