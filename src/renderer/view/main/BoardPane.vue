@@ -23,17 +23,17 @@
       :last-move="lastMove"
       :candidates="[]"
       :flip="appSettings.boardFlipping"
-      :hide-clock="true"
+      :hide-clock="hideClock"
       :mobile="isMobileWebApp()"
       :allow-move="store.isMovableByUser"
       :allow-edit="store.appState === AppState.POSITION_EDITING"
       :enable-drag-and-drop="appSettings.enableDragAndDrop"
       :black-player-name="blackPlayerName"
       :white-player-name="whitePlayerName"
-      :black-player-time="0"
-      :black-player-byoyomi="0"
-      :white-player-time="0"
-      :white-player-byoyomi="0"
+      :black-player-time="blackTime"
+      :black-player-byoyomi="blackByoyomi"
+      :white-player-time="whiteTime"
+      :white-player-byoyomi="whiteByoyomi"
       :drop-shadows="!isMobileWebApp()"
       @resize="onResize"
       @move="onMove"
@@ -60,9 +60,10 @@
 <script setup lang="ts">
 import { t } from "@/common/i18n";
 import { computed, PropType } from "vue";
+import { Color, Move, PositionChange, getBlackPlayerName, getWhitePlayerName } from "tsshogi";
 import BoardView from "@/renderer/view/primitive/BoardView.vue";
 import ControlPane, { ControlGroup } from "@/renderer/view/main/ControlPane.vue";
-import { Move, PositionChange, getBlackPlayerName, getWhitePlayerName } from "tsshogi";
+
 import { RectSize } from "@/common/assets/geometry.js";
 import { useStore } from "@/renderer/store";
 import { AppState } from "@/common/control/state.js";
@@ -121,6 +122,52 @@ const lastMove = computed(() => {
   const move = store.record.current.move;
   return move instanceof Move ? move : undefined;
 });
-const blackPlayerName = computed(() => getBlackPlayerName(store.record.metadata) || t.sente);
-const whitePlayerName = computed(() => getWhitePlayerName(store.record.metadata) || t.gote);
+
+// メモライズ時はプレイヤー名を動的に
+const blackPlayerName = computed(() => {
+  if (store.appState === AppState.MEMORIZE) {
+    return store.memorizePlayerColor === Color.BLACK ? "あなた" : "相手";
+  }
+  return getBlackPlayerName(store.record.metadata) || t.sente;
+});
+const whitePlayerName = computed(() => {
+  if (store.appState === AppState.MEMORIZE) {
+    return store.memorizePlayerColor === Color.WHITE ? "あなた" : "相手";
+  }
+  return getWhitePlayerName(store.record.metadata) || t.gote;
+});
+
+// メモライズ解答中は時計を表示する
+const hideClock = computed(() => {
+  return store.appState !== AppState.MEMORIZE;
+});
+
+// メモライズ用時計の値を取得（リアクティブ）
+const blackTime = computed(() => {
+  if (store.appState === AppState.MEMORIZE && store.memorizeBlackTime >= 0) {
+    return store.memorizeBlackTime;
+  }
+  return undefined;
+});
+
+const whiteTime = computed(() => {
+  if (store.appState === AppState.MEMORIZE && store.memorizeWhiteTime >= 0) {
+    return store.memorizeWhiteTime;
+  }
+  return undefined;
+});
+
+const blackByoyomi = computed(() => {
+  if (store.appState === AppState.MEMORIZE && store.memorizeBlackByoyomi >= 0) {
+    return store.memorizeBlackByoyomi;
+  }
+  return 0;
+});
+
+const whiteByoyomi = computed(() => {
+  if (store.appState === AppState.MEMORIZE && store.memorizeWhiteByoyomi >= 0) {
+    return store.memorizeWhiteByoyomi;
+  }
+  return 0;
+});
 </script>

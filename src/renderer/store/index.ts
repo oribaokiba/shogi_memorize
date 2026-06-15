@@ -43,7 +43,8 @@ import { Confirmation, useConfirmationStore } from "./confirm.js";
 import { LayoutProfile } from "@/common/settings/layout.js";
 import { clearURLParams, loadRecordForWebApp, saveRecordForWebApp } from "./webapp.js";
 import { ListItem } from "@/common/message.js";
-import { MemorizeManager, MemorizeProblem } from "./memorize.js";
+import { MemorizeManager, MemorizeProblem, TimeLimitMode } from "./memorize.js";
+import type { TimeLimitSettings } from "@/common/settings/game.js";
 
 class Store {
   private recordManager = new RecordManager(loadRecordForWebApp());
@@ -58,6 +59,11 @@ class Store {
 
   /** メモライズ機能管理 */
   private _memorize: MemorizeManager;
+  /** メモライズ用時計表示（リアクティブ） */
+  private _memorizeBlackTime = -1;
+  private _memorizeWhiteTime = -1;
+  private _memorizeBlackByoyomi = -1;
+  private _memorizeWhiteByoyomi = -1;
 
   constructor() {
     const refs = reactive(this);
@@ -68,7 +74,69 @@ class Store {
         (this._reactive as any).appState = state;
       },
       getAppState: () => this._appState,
+      showResultDialog: (mode: "perProblem" | "overall") => {
+        this.showMemorizeResultDialog(mode);
+      },
     });
+    // メモライズタイマー更新のコールバックを設定
+    this._memorize.onTimerUpdate = (
+      timeMs: number,
+      byoyomi: number,
+      timeLimitMode: TimeLimitMode,
+      memorizePlayerColor: Color | undefined,
+      totalTimeMs: number,
+    ) => {
+      // reactiveプロキシ経由で代入（Vueの変更検知を正しく動作させるため）
+      const r = this._reactive as any;
+      if (timeLimitMode === "none") {
+        r._memorizeBlackTime = -1;
+        r._memorizeWhiteTime = -1;
+        r._memorizeBlackByoyomi = -1;
+        r._memorizeWhiteByoyomi = -1;
+        return;
+      }
+      // 持ち時間残り（秒）に変換
+      const remainingSeconds = timeMs >= 0 ? Math.ceil(timeMs / 1000) : -1;
+      // 秒読み残り
+      const byoyomiValue = byoyomi >= 0 ? byoyomi : -1;
+      // 解答者の手番に応じて時計を設定
+      if (memorizePlayerColor === Color.BLACK) {
+        r._memorizeBlackTime = remainingSeconds >= 0 ? remainingSeconds : -1;
+        r._memorizeBlackByoyomi = byoyomiValue >= 0 ? byoyomiValue : -1;
+        r._memorizeWhiteTime = -1;
+        r._memorizeWhiteByoyomi = -1;
+      } else if (memorizePlayerColor === Color.WHITE) {
+        r._memorizeWhiteTime = remainingSeconds >= 0 ? remainingSeconds : -1;
+        r._memorizeWhiteByoyomi = byoyomiValue >= 0 ? byoyomiValue : -1;
+        r._memorizeBlackTime = -1;
+        r._memorizeBlackByoyomi = -1;
+      }
+      // totalモードの場合、全体残り時間を表示。切れたら秒読みを表示
+      if (timeLimitMode === "total" && totalTimeMs >= 0) {
+        const totalSeconds = Math.ceil(totalTimeMs / 1000);
+        if (memorizePlayerColor === Color.BLACK) {
+          if (totalSeconds > 0) {
+            r._memorizeBlackTime = totalSeconds;
+            r._memorizeBlackByoyomi = -1;
+          } else {
+            r._memorizeBlackTime = 0;
+            r._memorizeBlackByoyomi = byoyomiValue;
+          }
+          r._memorizeWhiteTime = -1;
+          r._memorizeWhiteByoyomi = -1;
+        } else if (memorizePlayerColor === Color.WHITE) {
+          if (totalSeconds > 0) {
+            r._memorizeWhiteTime = totalSeconds;
+            r._memorizeWhiteByoyomi = -1;
+          } else {
+            r._memorizeWhiteTime = 0;
+            r._memorizeWhiteByoyomi = byoyomiValue;
+          }
+          r._memorizeBlackTime = -1;
+          r._memorizeBlackByoyomi = -1;
+        }
+      }
+    };
     this.recordManager
       .on("changePosition", () => {
         this.onChangePositionHandlers.forEach((handler) => handler());
@@ -272,10 +340,73 @@ class Store {
     return this._memorize.editingProblemIndex;
   }
 
+  // ========== 持ち時間設定 ==========
+
+  get dialogUseTimeLimit(): boolean {
+    return this._memorize.dialogUseTimeLimit;
+  }
+
+  set dialogUseTimeLimit(v: boolean) {
+    this._memorize.dialogUseTimeLimit = v;
+  }
+
+  get dialogTimeLimitMode(): TimeLimitMode {
+    return this._memorize.dialogTimeLimitMode;
+  }
+
+  set dialogTimeLimitMode(v: TimeLimitMode) {
+    this._memorize.dialogTimeLimitMode = v;
+  }
+
+  get dialogTimeLimitSettings(): TimeLimitSettings {
+    return this._memorize.dialogTimeLimitSettings;
+  }
+
+  set dialogTimeLimitSettings(v: TimeLimitSettings) {
+    this._memorize.dialogTimeLimitSettings = v;
+  }
+
+  // タイマー状態
+  get timeLimitMode(): TimeLimitMode {
+    return this._memorize.timeLimitMode;
+  }
+
+  get remainingSeconds(): number {
+    return this._memorize.remainingSeconds;
+  }
+
+  get totalRemainingSeconds(): number {
+    return this._memorize.totalRemainingSeconds;
+  }
+
+  /** メモライズ用時計表示（先手） */
+  get memorizeBlackTime(): number {
+    return this._memorizeBlackTime;
+  }
+
+  /** メモライズ用時計表示（後手） */
+  get memorizeWhiteTime(): number {
+    return this._memorizeWhiteTime;
+  }
+
+  /** メモライズ用時計 秒読み表示（先手） */
+  get memorizeBlackByoyomi(): number {
+    return this._memorizeBlackByoyomi;
+  }
+
+  /** メモライズ用時計 秒読み表示（後手） */
+  get memorizeWhiteByoyomi(): number {
+    return this._memorizeWhiteByoyomi;
+  }
+
   // ========== Memorize 委譲メソッド（解答用） ==========
 
   async startSolveSession(): Promise<void> {
     await this._memorize.startSolveSession();
+  }
+
+  startMemorizeTimer(): void {
+    this._memorize.startTimer();
   }
 
   async startCurrentSolveProblem(): Promise<void> {

@@ -41,6 +41,95 @@
           @update:value="onChangeSkipCommonMoves"
         />
       </div>
+
+      <!-- 持ち時間セクション -->
+      <div class="form-section-label">持ち時間設定</div>
+
+      <div class="form-item">
+        <span class="form-label">持ち時間</span>
+        <ToggleButton
+          :value="useTimeLimit"
+          :label="useTimeLimit ? '使用する' : '使用しない'"
+          @update:value="onChangeUseTimeLimit"
+        />
+      </div>
+
+      <template v-if="useTimeLimit">
+        <div class="form-item">
+          <span class="form-label">適用範囲</span>
+          <ToggleButton
+            :value="timeLimitMode === 'total'"
+            :label="timeLimitMode === 'total' ? '問題集全体' : '各問題ごと'"
+            @update:value="onChangeTimeLimitMode"
+          />
+        </div>
+
+        <div class="form-item">
+          <span class="form-label">持ち時間</span>
+          <input
+            type="number"
+            :value="timeMinutes"
+            min="0"
+            max="999"
+            class="form-input-number"
+            @input="onChangeTimeMinutes"
+          />
+          <span class="form-suffix">分</span>
+          <input
+            type="number"
+            :value="timeSeconds"
+            min="0"
+            max="59"
+            class="form-input-number"
+            @input="onChangeTimeSeconds"
+          />
+          <span class="form-suffix">秒</span>
+        </div>
+
+        <div class="form-item">
+          <span class="form-label">秒読み</span>
+          <input
+            type="number"
+            :value="byoyomiMinutes"
+            min="0"
+            max="99"
+            class="form-input-number"
+            @input="onChangeByoyomiMinutes"
+          />
+          <span class="form-suffix">分</span>
+          <input
+            type="number"
+            :value="byoyomiSeconds"
+            min="0"
+            max="59"
+            class="form-input-number"
+            @input="onChangeByoyomiSeconds"
+          />
+          <span class="form-suffix">秒</span>
+        </div>
+
+        <div class="form-item">
+          <span class="form-label">加算</span>
+          <input
+            type="number"
+            :value="incrementMinutes"
+            min="0"
+            max="99"
+            class="form-input-number"
+            @input="onChangeIncrementMinutes"
+          />
+          <span class="form-suffix">分</span>
+          <input
+            type="number"
+            :value="incrementSeconds"
+            min="0"
+            max="59"
+            class="form-input-number"
+            @input="onChangeIncrementSeconds"
+          />
+          <span class="form-suffix">秒</span>
+        </div>
+      </template>
     </div>
 
     <div class="main-buttons">
@@ -55,15 +144,38 @@ import { computed, ref } from "vue";
 import { useStore } from "@/renderer/store";
 import ToggleButton from "@/renderer/view/primitive/ToggleButton.vue";
 import DialogFrame from "./DialogFrame.vue";
+import type { TimeLimitMode } from "@/renderer/store/memorize.js";
 
 const store = useStore();
 
 const isRandomOrder = ref(store.dialogRandomOrder);
 const maxQuestions = ref(store.dialogMaxQuestions);
 const skipCommonMoves = ref(store.dialogSkipCommonMoves);
+const useTimeLimit = ref(store.dialogUseTimeLimit);
+const timeLimitMode = ref<TimeLimitMode>(store.dialogTimeLimitMode);
+
+// 持ち時間（秒→分/秒に変換）
+const timeLimitTotalSeconds = ref(store.dialogTimeLimitSettings.timeSeconds);
+const byoyomiSeconds_ = ref(store.dialogTimeLimitSettings.byoyomi);
+const incrementSeconds_ = ref(store.dialogTimeLimitSettings.increment);
+
+const timeMinutes = computed(() => Math.floor(timeLimitTotalSeconds.value / 60));
+const timeSeconds = computed(() => timeLimitTotalSeconds.value % 60);
+const byoyomiMinutes = computed(() => Math.floor(byoyomiSeconds_.value / 60));
+const byoyomiSeconds = computed(() => byoyomiSeconds_.value % 60);
+const incrementMinutes = computed(() => Math.floor(incrementSeconds_.value / 60));
+const incrementSeconds = computed(() => incrementSeconds_.value % 60);
 
 const canStart = computed(() => {
-  return (store.memorizeCollection?.problems.length ?? 0) > 0;
+  const hasProblems = (store.memorizeCollection?.problems.length ?? 0) > 0;
+  if (!hasProblems) {
+    return false;
+  }
+  if (useTimeLimit.value) {
+    const totalLimit = timeLimitTotalSeconds.value + byoyomiSeconds_.value + incrementSeconds_.value;
+    return totalLimit > 0;
+  }
+  return true;
 });
 
 const onChangeRandomOrder = (v: boolean) => {
@@ -82,12 +194,82 @@ const onChangeSkipCommonMoves = (v: boolean) => {
   store.dialogSkipCommonMoves = skipCommonMoves.value;
 };
 
+const onChangeUseTimeLimit = (v: boolean) => {
+  useTimeLimit.value = v;
+  store.dialogUseTimeLimit = v;
+};
+
+const onChangeTimeLimitMode = (v: boolean) => {
+  // toggle: false=perProblem, true=total
+  timeLimitMode.value = v ? "total" : "perProblem";
+  store.dialogTimeLimitMode = timeLimitMode.value;
+};
+
+const updateTimeLimitSettings = () => {
+  store.dialogTimeLimitSettings = {
+    timeSeconds: timeLimitTotalSeconds.value,
+    byoyomi: byoyomiSeconds_.value,
+    increment: incrementSeconds_.value,
+  };
+};
+
+const onChangeTimeMinutes = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const m = isNaN(val) || val < 0 ? 0 : val;
+  timeLimitTotalSeconds.value = m * 60 + (timeLimitTotalSeconds.value % 60);
+  updateTimeLimitSettings();
+};
+
+const onChangeTimeSeconds = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const s = isNaN(val) || val < 0 ? 0 : Math.min(val, 59);
+  timeLimitTotalSeconds.value = Math.floor(timeLimitTotalSeconds.value / 60) * 60 + s;
+  updateTimeLimitSettings();
+};
+
+const onChangeByoyomiMinutes = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const m = isNaN(val) || val < 0 ? 0 : val;
+  byoyomiSeconds_.value = m * 60 + (byoyomiSeconds_.value % 60);
+  updateTimeLimitSettings();
+};
+
+const onChangeByoyomiSeconds = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const s = isNaN(val) || val < 0 ? 0 : Math.min(val, 59);
+  byoyomiSeconds_.value = Math.floor(byoyomiSeconds_.value / 60) * 60 + s;
+  updateTimeLimitSettings();
+};
+
+const onChangeIncrementMinutes = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const m = isNaN(val) || val < 0 ? 0 : val;
+  incrementSeconds_.value = m * 60 + (incrementSeconds_.value % 60);
+  updateTimeLimitSettings();
+};
+
+const onChangeIncrementSeconds = (event: Event) => {
+  const val = parseInt((event.target as HTMLInputElement).value, 10);
+  const s = isNaN(val) || val < 0 ? 0 : Math.min(val, 59);
+  incrementSeconds_.value = Math.floor(incrementSeconds_.value / 60) * 60 + s;
+  updateTimeLimitSettings();
+};
+
 const onStart = async () => {
   store.dialogRandomOrder = isRandomOrder.value;
   store.dialogMaxQuestions = maxQuestions.value;
   store.dialogSkipCommonMoves = skipCommonMoves.value;
+  store.dialogUseTimeLimit = useTimeLimit.value;
+  store.dialogTimeLimitMode = timeLimitMode.value;
+  store.dialogTimeLimitSettings = {
+    timeSeconds: timeLimitTotalSeconds.value,
+    byoyomi: byoyomiSeconds_.value,
+    increment: incrementSeconds_.value,
+  };
   store.closeMemorizeSolveDialog();
   await store.startSolveSession();
+  // ダイアログを閉じた後にタイマー開始（ダイアログ中に時間消費されるのを防ぐ）
+  store.startMemorizeTimer();
 };
 
 const onCancel = () => {
@@ -119,6 +301,14 @@ const onCancel = () => {
   flex-wrap: wrap;
   background: var(--main-bg-color);
 }
+.form-section-label {
+  font-size: 0.82em;
+  font-weight: bold;
+  color: var(--text-color-muted);
+  padding: 8px 8px 4px;
+  border-bottom: 1px solid var(--text-separator-color);
+  background: var(--main-bg-color);
+}
 .form-label {
   font-size: 0.82em;
   color: var(--text-color-muted);
@@ -142,6 +332,7 @@ const onCancel = () => {
 .form-suffix {
   font-size: 0.82em;
   color: var(--text-color-muted);
+  white-space: nowrap;
 }
 .main-buttons {
   display: flex;

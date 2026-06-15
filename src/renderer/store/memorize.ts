@@ -27,6 +27,8 @@ import {
   saveMemorizeCollection,
   type MemorizeCollection,
 } from "@/common/memorize/index.js";
+import type { TimeLimitSettings } from "@/common/settings/game.js";
+import { defaultTimeLimitSettings } from "@/common/settings/game.js";
 
 // 旧形式のメモライズ問題（互換性維持）
 export type MemorizeProblem = {
@@ -34,6 +36,18 @@ export type MemorizeProblem = {
   moves: Move[];
   playerColor: Color;
 };
+
+/** 持ち時間モード */
+export type TimeLimitMode = "none" | "perProblem" | "total";
+
+/** タイマー更新通知用コールバック */
+export type TimerUpdateCallback = (
+  timeMs: number,
+  byoyomi: number,
+  timeLimitMode: TimeLimitMode,
+  memorizePlayerColor: Color | undefined,
+  totalTimeMs: number,
+) => void;
 
 /**
  * メモライズ（定跡暗記）機能を管理するクラス
@@ -82,21 +96,41 @@ export class MemorizeManager {
   private _dialogRandomOrder = false;
   private _dialogMaxQuestions = 0;
   private _dialogSkipCommonMoves = false;
+  private _dialogUseTimeLimit = false;
+  private _dialogTimeLimitMode: TimeLimitMode = "perProblem";
+  private _dialogTimeLimitSettings: TimeLimitSettings = defaultTimeLimitSettings();
+
+  // タイマー管理
+  private _timeLimitMode: TimeLimitMode = "none";
+  private _timeLimitSettings: TimeLimitSettings = defaultTimeLimitSettings();
+  private _timerHandle: ReturnType<typeof setInterval> | null = null;
+  private _startTimestamp = 0;
+  private _lastTimeMs = 0;
+  private _timeMs = 0;
+  private _byoyomi = 0;
+  private _totalElapsedMs = 0;
+  private _totalFisherMs = 0;
+  /** Storeのリアクティブな値を更新するコールバック */
+  private _onTimerUpdate: TimerUpdateCallback | null = null;
 
   // 外部から appState を操作するためのコールバック
   private setAppState: (state: AppState) => void;
   private getAppState: () => AppState;
+  /** 結果ダイアログ表示用コールバック */
+  private showResultDialog: (mode: "perProblem" | "overall") => void;
 
   constructor(
     recordManager: RecordManager,
     callbacks: {
       setAppState: (state: AppState) => void;
       getAppState: () => AppState;
+      showResultDialog: (mode: "perProblem" | "overall") => void;
     },
   ) {
     this._recordManager = recordManager;
     this.setAppState = callbacks.setAppState;
     this.getAppState = callbacks.getAppState;
+    this.showResultDialog = callbacks.showResultDialog;
   }
 
   // ========== プロパティ ==========
@@ -287,6 +321,328 @@ export class MemorizeManager {
     this._dialogSkipCommonMoves = v;
   }
 
+  get dialogUseTimeLimit(): boolean {
+    return this._dialogUseTimeLimit;
+  }
+
+  set dialogUseTimeLimit(v: boolean) {
+    this._dialogUseTimeLimit = v;
+  }
+
+  get dialogTimeLimitMode(): TimeLimitMode {
+    return this._dialogTimeLimitMode;
+  }
+
+  set dialogTimeLimitMode(v: TimeLimitMode) {
+    this._dialogTimeLimitMode = v;
+  }
+
+  get dialogTimeLimitSettings(): TimeLimitSettings {
+    return this._dialogTimeLimitSettings;
+  }
+
+  set dialogTimeLimitSettings(v: TimeLimitSettings) {
+    this._dialogTimeLimitSettings = v;
+  }
+
+  // ========== タイマー管理 ==========
+
+  get timeLimitMode(): TimeLimitMode {
+    return this._timeLimitMode;
+  }
+
+  get timeLimitSettings(): TimeLimitSettings {
+    return this._timeLimitSettings;
+  }
+
+  /** 持ち時間残り（秒） */
+  get remainingSeconds(): number {
+    if (this._timeLimitMode === "none") {
+      return -1;
+    }
+    return Math.ceil(this._timeMs / 1000);
+  }
+
+  /** 秒読み残り（秒） */
+  get byoyomiSeconds(): number {
+    if (this._timeLimitMode === "none") {
+      return -1;
+    }
+    return this._byoyomi;
+  }
+
+  /** 全体モードでの残り持ち時間（秒） */
+  get totalRemainingSeconds(): number {
+    if (this._timeLimitMode !== "total") {
+      return -1;
+    }
+    const limitMs =
+      (this._timeLimitSettings.timeSeconds +
+        this._timeLimitSettings.byoyomi +
+        this._timeLimitSettings.increment) *
+      1000;
+    if (limitMs <= 0) {
+      return -1;
+    }
+    const elapsedMs = this._totalElapsedMs + this.getCurrentIntervalMs();
+    return Math.max(0, Math.ceil((limitMs - elapsedMs) / 1000));
+  }
+
+  /** 全体モードでの秒読み残り（秒） */
+  get totalByoyomiSeconds(): number {
+    if (this._timeLimitMode !== "total") {
+      return -1;
+    }
+    return this._byoyomi;
+  }
+
+  get totalTimeMs(): number {
+    if (this._timeLimitMode !== "total") {
+      return -1;
+    }
+    const limitMs = this._timeLimitSettings.timeSeconds * 1000 + this._totalFisherMs;
+    const elapsedMs = this._totalElapsedMs + this.getCurrentIntervalMs();
+    return Math.max(0, limitMs - elapsedMs);
+  }
+
+  private getCurrentIntervalMs(): number {
+    if (!this._startTimestamp) {
+      return 0;
+    }
+    return Date.now() - this._startTimestamp;
+  }
+
+  /** Storeのリアクティブな値を更新するコールバックを登録 */
+  set onTimerUpdate(callback: TimerUpdateCallback | null) {
+    this._onTimerUpdate = callback;
+  }
+
+  get onTimerUpdate(): TimerUpdateCallback | null {
+    return this._onTimerUpdate;
+  }
+
+  /** タイマーを開始する（public: ダイアログが閉じた後に呼び出す） */
+  startTimer(): void {
+    this.stopTimer();
+    if (this._timeLimitMode === "none") {
+      return;
+    }
+    // 持ち時間設定を初期化
+    this._timeMs = this._timeLimitSettings.timeSeconds * 1000;
+    this._byoyomi = this._timeLimitSettings.byoyomi;
+    this._startTimestamp = Date.now();
+    this._lastTimeMs = this._timeMs;
+
+    this._timerHandle = setInterval(() => {
+      this.updateTimer();
+    }, 200);
+  }
+
+  private stopTimer(): void {
+    if (this._timerHandle !== null) {
+      clearInterval(this._timerHandle);
+      this._timerHandle = null;
+    }
+    if (this._startTimestamp) {
+      const diffMs = this.getCurrentIntervalMs();
+      // 経過時間を反映
+      this._timeMs = Math.max(0, this._lastTimeMs - diffMs);
+      if (this._timeMs === 0 && this._byoyomi > 0) {
+        // 持ち時間が尽きていたら秒読みを消費
+        const consumedByoyomi = Math.ceil((diffMs - this._lastTimeMs) / 1000);
+        this._byoyomi = Math.max(0, this._byoyomi + consumedByoyomi);
+      }
+      if (this._timeLimitMode === "total") {
+        this._totalElapsedMs += diffMs;
+      }
+      this._startTimestamp = 0;
+    }
+  }
+
+  /** 一手消費後の時計処理（Clock.stop() + increment + Clock.start() 相当） */
+  private advanceClockAfterMove(isPlayerMove: boolean): void {
+    if (this._timeLimitMode === "none") {
+      return;
+    }
+
+    // 経過時間を確定させる
+    this.stopTimer();
+
+    // フィッシャー加算
+    if (isPlayerMove && this._timeLimitSettings.increment > 0) {
+      if (this._timeLimitMode === "perProblem") {
+        this._timeMs += this._timeLimitSettings.increment * 1000;
+      } else if (this._timeLimitMode === "total") {
+        this._totalFisherMs += this._timeLimitSettings.increment * 1000;
+      }
+    }
+
+    // 秒読みリセット（秒読み設定がある場合）
+    if (this._timeLimitSettings.byoyomi > 0) {
+      if (this._timeLimitMode === "perProblem" || (this._timeLimitMode === "total" && this.totalTimeMs > 0)) {
+        this._byoyomi = this._timeLimitSettings.byoyomi;
+      }
+    }
+
+    // 再スタート（ここでは timeLimitMode は "perProblem" | "total" 確定）
+    this._startTimestamp = Date.now();
+    this._lastTimeMs = this._timeMs;
+    this._timerHandle = setInterval(() => {
+      this.updateTimer();
+    }, 200);
+  }
+
+  /** プレイヤーの指し手を反映し、タイマーを停止させ、フィッシャー加算を適用する */
+  private stopTimerAndApplyIncrement(): void {
+    if (this._timeLimitMode === "none") {
+      return;
+    }
+    this.stopTimer();
+    // フィッシャー加算
+    if (this._timeLimitSettings.increment > 0) {
+      if (this._timeLimitMode === "perProblem") {
+        this._timeMs += this._timeLimitSettings.increment * 1000;
+      } else if (this._timeLimitMode === "total") {
+        this._totalFisherMs += this._timeLimitSettings.increment * 1000;
+      }
+    }
+    // 秒読みリセット
+    if (this._timeLimitSettings.byoyomi > 0) {
+      this._byoyomi = this._timeLimitSettings.byoyomi;
+    }
+    // UI更新
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(
+        this._timeMs,
+        this._byoyomi,
+        this._timeLimitMode,
+        this._memorizePlayerColor,
+        this.totalTimeMs,
+      );
+    }
+  }
+
+  private updateTimer(): void {
+    if (!this._startTimestamp) {
+      return;
+    }
+
+    const diffMs = Date.now() - this._startTimestamp;
+    const remainingMs = this._lastTimeMs - diffMs;
+
+    if (remainingMs >= 0) {
+      this._timeMs = remainingMs;
+    } else {
+      // 持ち時間が尽きた → 秒読みに移行
+      this._timeMs = 0;
+      this._byoyomi = Math.max(
+        0,
+        Math.ceil((this._timeLimitSettings.byoyomi || 0) + remainingMs / 1000),
+      );
+    }
+
+    // 時間切れチェック（perProblemモード）
+    if (this._timeLimitMode === "perProblem") {
+      if (this._timeMs === 0 && this._byoyomi === 0) {
+        this.handleTimeUp();
+        return;
+      }
+    }
+
+    // totalモードの場合
+    if (this._timeLimitMode === "total") {
+      const totalRemainingMs = this.totalTimeMs;
+      if (totalRemainingMs > 0) {
+        this._timeMs = totalRemainingMs;
+        this._byoyomi = this._timeLimitSettings.byoyomi;
+      } else {
+        // 全体持ち時間が切れたら、その手番の秒読みを消費する
+        this._timeMs = 0;
+        const limitMs = this._timeLimitSettings.timeSeconds * 1000 + this._totalFisherMs;
+        const elapsedMs = this._totalElapsedMs + diffMs;
+        const overdraftMs = elapsedMs - limitMs;
+        this._byoyomi = Math.max(
+          0,
+          Math.ceil(this._timeLimitSettings.byoyomi - overdraftMs / 1000),
+        );
+      }
+
+      if (this._timeMs === 0 && this._byoyomi === 0) {
+        this.handleTotalTimeUp();
+        return;
+      }
+    }
+
+    // Storeのリアクティブ値を更新
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(
+        this._timeMs,
+        this._byoyomi,
+        this._timeLimitMode,
+        this._memorizePlayerColor,
+        this.totalTimeMs,
+      );
+    }
+  }
+
+  private async handleTimeUp(): Promise<void> {
+    this.stopTimer();
+    this._isMemorizeProcessing = false;
+    this._isGiveUp = true;
+    this._memorizeGiveUpCount++;
+    this._problemGiveUpCount++;
+
+    // 現在の問題の最終手まで自動進行
+    const problem = this.currentProblem;
+    if (problem) {
+      const remainingMoves = problem.moves.slice(this._memorizeStep);
+      for (const move of remainingMoves) {
+        this._recordManager.appendMove({ move });
+        this._memorizeStep++;
+      }
+      this._memorizeWrongCount += this._problemWrongMoves;
+      this._memorizeCorrectCount += this._problemCorrectMoves;
+      this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
+    }
+
+    // UI更新（時間切れを通知）
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(0, 0, this._timeLimitMode, this._memorizePlayerColor, this.totalTimeMs);
+    }
+
+    // 結果ダイアログを表示（ユーザーが確認してから次の問題へ進む）
+    if (this._isSolving) {
+      this.recordClearedProblem();
+    }
+  }
+
+  private async handleTotalTimeUp(): Promise<void> {
+    this.stopTimer();
+    this._isGiveUp = true;
+
+    // UI更新（時間切れを通知）
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(0, 0, this._timeLimitMode, this._memorizePlayerColor, 0);
+    }
+
+    // 現在の問題の最終手まで自動進行
+    const problem = this.currentProblem;
+    if (problem) {
+      const remainingMoves = problem.moves.slice(this._memorizeStep);
+      for (const move of remainingMoves) {
+        this._recordManager.appendMove({ move });
+        this._memorizeStep++;
+      }
+      this._memorizeWrongCount += this._problemWrongMoves;
+      this._memorizeCorrectCount += this._problemCorrectMoves;
+      this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
+    }
+
+    // 全体結果を表示
+    this.showResultDialog("overall");
+    this.endSolveSession();
+  }
+
   get editingProblemIndex(): number {
     return this._editingProblemIndex;
   }
@@ -341,6 +697,16 @@ export class MemorizeManager {
     this._skipCommonMoves = this._dialogSkipCommonMoves;
     this._clearedPaths.clear();
     this._isSolving = true;
+
+    // タイマー設定
+    this._timeLimitMode = this._dialogUseTimeLimit ? this._dialogTimeLimitMode : "none";
+    this._timeLimitSettings = { ...this._dialogTimeLimitSettings };
+    this._timeMs = 0;
+    this._byoyomi = 0;
+    this._totalElapsedMs = 0;
+    this._totalFisherMs = 0;
+    this._startTimestamp = 0;
+
     this.setAppState(AppState.MEMORIZE);
     await this.startCurrentSolveProblem();
   }
@@ -353,6 +719,9 @@ export class MemorizeManager {
     this._problemHintCount = 0;
     this._problemGiveUpCount = 0;
     this._problemTotalPlayerMoves = 0;
+
+    // タイマーリセット
+    this.stopTimer();
 
     const problem = this.currentCollectionProblem;
     if (!problem || !this._memorizeCollection) {
@@ -402,6 +771,24 @@ export class MemorizeManager {
     } else if (moveObjects.length > 0 && moveObjects[0].color !== problem.playerColor) {
       this._recordManager.appendMove({ move: moveObjects[0] });
       this._memorizeStep = 1;
+    }
+
+    // タイマー開始
+    if (this._timeLimitMode === "perProblem") {
+      this.startTimer();
+    } else if (this._timeLimitMode === "total") {
+      this.startTimer();
+    }
+
+    // 初期値を通知
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(
+        this._timeMs,
+        this._byoyomi,
+        this._timeLimitMode,
+        this._memorizePlayerColor,
+        this.totalTimeMs,
+      );
     }
   }
 
@@ -458,6 +845,11 @@ export class MemorizeManager {
   }
 
   endSolveSession(): void {
+    this.stopTimer();
+    this._timeLimitMode = "none";
+    this._timeMs = 0;
+    this._byoyomi = 0;
+    this._totalElapsedMs = 0;
     this._isSolving = false;
     this._solveOrder = [];
     this._solveIndex = 0;
@@ -473,6 +865,10 @@ export class MemorizeManager {
     this._memorizeCollectionPath = null;
     this.setAppState(AppState.NORMAL);
     this._recordManager.reset();
+    // タイマー停止を通知
+    if (this._onTimerUpdate) {
+      this._onTimerUpdate(0, 0, "none", undefined, 0);
+    }
   }
 
   // ========== 解答用問題集コレクション管理 ==========
@@ -729,9 +1125,7 @@ export class MemorizeManager {
       const children: ImmutableNode[] = [];
       let child = node.next;
       while (child) {
-        if (child.move && child.move instanceof TsshogiMove) {
-          children.push(child);
-        }
+        children.push(child);
         child = child.branch;
       }
 
@@ -940,9 +1334,7 @@ export class MemorizeManager {
       const children: ImmutableNode[] = [];
       let child = node.next;
       while (child) {
-        if (child.move && child.move instanceof TsshogiMove) {
-          children.push(child);
-        }
+        children.push(child);
         child = child.branch;
       }
 
@@ -1123,7 +1515,33 @@ export class MemorizeManager {
       }
       this._memorizeStep++;
 
+      // 次の手が相手の手番か？
+      const nextPlayerColor =
+        this._memorizePlayerColor !== undefined ? this._memorizePlayerColor : problem.playerColor;
+      const nextMove = problem.moves[this._memorizeStep];
+      const isNextOpponent = nextMove && nextMove.color !== nextPlayerColor;
+
+      if (isNextOpponent) {
+        // 次が相手の手番なら、時計を加算して一旦タイマーを止める
+        this.stopTimerAndApplyIncrement();
+      } else {
+        // 次もプレイヤーの手番なら、時計を進めてタイマーを継続
+        this.advanceClockAfterMove(true);
+      }
+
       if (this._memorizeStep >= problem.moves.length) {
+        // 問題完了 → タイマー停止
+        this.stopTimer();
+        // UI更新
+        if (this._onTimerUpdate) {
+          this._onTimerUpdate(
+            this._timeMs,
+            this._byoyomi,
+            this._timeLimitMode,
+            this._memorizePlayerColor,
+            this.totalTimeMs,
+          );
+        }
         this._memorizeCorrectCount += this._problemCorrectMoves;
         this._memorizeWrongCount += this._problemWrongMoves;
         this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
@@ -1138,7 +1556,12 @@ export class MemorizeManager {
         this._isMemorizeProcessing = true;
         await this.sleep(400);
         // セッションが継続中か確認（解答終了などで中断された場合は何もしない）
-        if (this.getAppState() !== AppState.MEMORIZE || !this._isMemorizeProcessing) {
+        if (
+          this.getAppState() !== AppState.MEMORIZE ||
+          !this._isMemorizeProcessing ||
+          this._isGiveUp ||
+          this._memorizeStep >= problem.moves.length
+        ) {
           this._isMemorizeProcessing = false;
           return;
         }
@@ -1151,7 +1574,20 @@ export class MemorizeManager {
         this._memorizeStep++;
         this._isMemorizeProcessing = false;
 
+        // 相手の指した手に対しても時計を進める（相手の消費時間を考慮しない簡易実装）
+        this.advanceClockAfterMove(false);
+
         if (this._memorizeStep >= problem.moves.length) {
+          this.stopTimer();
+          if (this._onTimerUpdate) {
+            this._onTimerUpdate(
+              this._timeMs,
+              this._byoyomi,
+              this._timeLimitMode,
+              this._memorizePlayerColor,
+              this.totalTimeMs,
+            );
+          }
           this._memorizeCorrectCount += this._problemCorrectMoves;
           this._memorizeWrongCount += this._problemWrongMoves;
           this._memorizeTotalQuestions += this._problemTotalPlayerMoves;
@@ -1203,6 +1639,9 @@ export class MemorizeManager {
       useErrorStore().add(e);
     }
     this._memorizeStep++;
+
+    // 次の手ボタンでも時計は進める
+    this.advanceClockAfterMove(false);
 
     if (this._memorizeStep >= problem.moves.length) {
       return;
