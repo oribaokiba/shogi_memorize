@@ -7,15 +7,15 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sunfish-shogi/shogihome.git"
+    "url": "git+https://github.com/oribaokiba/shogi_memorize.git"
   },
   "keywords": [
     "shogi"
   ],
   "bugs": {
-    "url": "https://github.com/sunfish-shogi/shogihome/issues"
+    "url": "https://github.com/oribaokiba/shogi_memorize/issues"
   },
-  "homepage": "https://github.com/sunfish-shogi/shogihome#readme",
+  "homepage": "https://github.com/oribaokiba/shogi_memorize#readme",
   "type": "module",
   "scripts": {
     "audit:scripts": "tsx scripts/audit-scripts.ts",

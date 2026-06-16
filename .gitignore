@@ -33,6 +33,9 @@ settings.local.json
 # AI
 .claude/
 
+# AI code review config (original project specific)
+.coderabbit.yaml
+
 # Source copy of original project
 shogihome_src/
 
