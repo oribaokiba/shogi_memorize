@@ -55,9 +55,6 @@ docs/wcsc/
 # Doc templates
 docs-templates/
 
-# Build outputs
-docs/webapp/
-docs/webapp-dev/
 
 # Development documents
 docs/claude_bug_report/
