@@ -36,6 +36,22 @@ settings.local.json
 # Source copy of original project
 shogihome_src/
 
+# GitHub CI/CD and templates (original project specific)
+.github/
+
+# Release info (original project specific)
+docs/release.json
+docs/release-linux.json
+docs/release-mac.json
+docs/release-win.json
+
+# Online shogi server config (original project specific)
+docs/floodgate/
+docs/wcsc/
+
+# Doc templates
+docs-templates/
+
 # Build outputs
 docs/webapp/
 docs/webapp-dev/
