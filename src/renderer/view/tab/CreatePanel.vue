@@ -15,7 +15,10 @@
     </div>
 
     <div v-else class="create-editor">
-      <div class="editor-buttons column">
+      <div class="editor-buttons column" :class="{ compact: isCompact }">
+        <button class="ctrl-btn close-btn" @click="onCloseCollection">
+          <Icon :icon="IconType.CLOSE" /><span>問題集を閉じる</span>
+        </button>
         <button class="ctrl-btn" @click="onAddBranch">
           <Icon :icon="IconType.TREE" /><span>分岐を追加</span>
         </button>
@@ -87,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { useStore } from "@/renderer/store";
 import { useMessageStore } from "@/renderer/store/message";
 import { useErrorStore } from "@/renderer/store/error";
@@ -100,12 +103,16 @@ import MemorizeImportCommentsDialog from "@/renderer/view/dialog/MemorizeImportC
 import { RectSize } from "@/common/assets/geometry.js";
 import { useFileReader } from "@/renderer/composables/useFileReader.js";
 
-defineProps({
+const props = defineProps({
   size: {
     type: RectSize,
     required: false,
     default: undefined,
   },
+});
+
+const isCompact = computed(() => {
+  return props.size?.height !== undefined && props.size.height < 230;
 });
 
 const store = useStore();
@@ -216,6 +223,10 @@ const removeProblem = (idx: number) => {
   store.removeProblemFromEditCollection(idx);
 };
 
+const onCloseCollection = () => {
+  store.closeEditCollection();
+};
+
 const openYAMLForCreating = () => {
   openYAMLFile((text: string) => {
     const err = store.loadEditCollectionFromYAML(text);
@@ -267,6 +278,31 @@ const openYAMLForCreating = () => {
   border-right: 1px solid var(--text-separator-color);
 }
 .editor-buttons .ctrl-btn {
+  width: 100%;
+}
+.editor-buttons.compact {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 300px;
+  align-content: start;
+  border-right: 1px solid var(--text-separator-color);
+  border-bottom: none;
+  padding: 4px;
+}
+.editor-buttons.compact .ctrl-btn {
+  width: 100%;
+  max-width: none;
+}
+.editor-buttons.compact .edit-separator {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.editor-buttons.compact .edit-name-area {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.editor-buttons.compact .edit-name-input {
   width: 100%;
 }
 .save-btn {
@@ -402,6 +438,14 @@ const openYAMLForCreating = () => {
 }
 .update-btn:hover {
   background-color: #4caf50;
+  color: white;
+}
+.close-btn {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+.close-btn:hover {
+  background-color: #e74c3c;
   color: white;
 }
 .cancel-btn {

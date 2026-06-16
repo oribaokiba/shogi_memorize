@@ -61,6 +61,10 @@
               <Icon :icon="IconType.QUIZ" />
               <span>定跡暗記を開く</span>
             </button>
+            <button class="ctrl-btn close-btn" @click="onCloseCollection">
+              <Icon :icon="IconType.CLOSE" />
+              <span>問題集を閉じる</span>
+            </button>
           </div>
         </div>
       </div>
@@ -177,6 +181,10 @@ const openYAMLForSolving = () => {
 
 const openMemorizeSolveDialog = () => {
   store.showMemorizeSolveDialog();
+};
+
+const onCloseCollection = () => {
+  store.closeMemorizeCollection();
 };
 </script>
 

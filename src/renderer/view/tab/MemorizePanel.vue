@@ -19,24 +19,33 @@
       </button>
     </div>
 
-    <SolvePanel v-if="panelMode === 'solve'" :size="size" />
-    <CreatePanel v-if="panelMode === 'create'" :size="size" />
+    <SolvePanel v-if="panelMode === 'solve'" :size="contentSize" />
+    <CreatePanel v-if="panelMode === 'create'" :size="contentSize" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useStore } from "@/renderer/store";
 import SolvePanel from "@/renderer/view/tab/SolvePanel.vue";
 import CreatePanel from "@/renderer/view/tab/CreatePanel.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 
-defineProps({
+const MODE_SWITCH_HEIGHT = 25; // モード切替タブ（24px） + border-bottom（1px）
+
+const props = defineProps({
   size: {
     type: RectSize,
     required: false,
     default: undefined,
   },
+});
+
+const contentSize = computed(() => {
+  if (!props.size) {
+    return undefined;
+  }
+  return new RectSize(props.size.width, props.size.height - MODE_SWITCH_HEIGHT);
 });
 
 const store = useStore();

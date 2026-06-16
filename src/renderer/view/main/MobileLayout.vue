@@ -39,6 +39,7 @@
         <MemorizePanel
           v-if="showRecordViewOnBottom"
           v-show="bottomUIType === BottomUIType.MEMORIZE"
+          :size="bottomViewSize"
           :style="{
             width: `${windowSize.width}px`,
             height: `${bottomViewSize.height}px`,
@@ -80,6 +81,7 @@
         <RecordInfo v-show="sideUIType === SideUIType.INFO" :size="sideViewSize" />
         <MemorizePanel
           v-show="sideUIType === SideUIType.MEMORIZE"
+          :size="sideViewSize"
           :style="{
             height: `${sideViewSize.height}px`,
           }"

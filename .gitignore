@@ -26,3 +26,24 @@ pnpm-debug.log*
 *.sw?
 
 settings.local.json
+
+# IDE/Editor
+.vscode/
+
+# AI
+.claude/
+
+# Source copy of original project
+shogihome_src/
+
+# Build outputs
+docs/webapp/
+docs/webapp-dev/
+
+# Development documents
+docs/claude_bug_report/
+docs/memorize_refactoring/
+docs/memorize_time_limit_bugfix/
+docs/reconstruct_new_shogi_memory/
+docs/shogi_memory/
+docs/skip_common_moves/

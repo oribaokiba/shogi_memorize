@@ -43,7 +43,7 @@ import { Confirmation, useConfirmationStore } from "./confirm.js";
 import { LayoutProfile } from "@/common/settings/layout.js";
 import { clearURLParams, loadRecordForWebApp, saveRecordForWebApp } from "./webapp.js";
 import { ListItem } from "@/common/message.js";
-import { MemorizeManager, MemorizeProblem, TimeLimitMode } from "./memorize.js";
+import { MemorizeManager, MemorizeProblem, TimeLimitMode } from "./memorize/index.js";
 import type { TimeLimitSettings } from "@/common/settings/game.js";
 
 class Store {
@@ -75,7 +75,10 @@ class Store {
       },
       getAppState: () => this._appState,
       showResultDialog: (mode: "perProblem" | "overall") => {
-        this.showMemorizeResultDialog(mode);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = this._reactive as any;
+        r._memorizeResultDialogMode = mode;
+        r._isMemorizeResultDialogVisible = true;
       },
     });
     // メモライズタイマー更新のコールバックを設定
@@ -425,6 +428,10 @@ class Store {
     return this._memorize.loadMemorizeCollectionFromYAML(yaml);
   }
 
+  closeMemorizeCollection(): void {
+    this._memorize.closeMemorizeCollection();
+  }
+
   // ========== Memorize 委譲メソッド（作成用） ==========
 
   newEditCollection(title: string, playerColor?: "black" | "white"): void {
@@ -486,12 +493,8 @@ class Store {
     this._memorize.clearEditProblem();
   }
 
-  importKIFForMemorize(data: string): Error | undefined {
-    return this._memorize.importKIFForMemorize(data);
-  }
-
-  startMemorizeProblem(index: number, playerColor?: Color): void {
-    this._memorize.startMemorizeProblem(index, playerColor);
+  closeEditCollection(): void {
+    this._memorize.closeEditCollection();
   }
 
   async doMemorizeMove(move: Move): Promise<void> {

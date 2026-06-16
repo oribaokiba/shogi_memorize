@@ -22,7 +22,7 @@
       :position="store.record.position"
       :last-move="lastMove"
       :candidates="[]"
-      :flip="appSettings.boardFlipping"
+      :flip="boardFlip"
       :hide-clock="hideClock"
       :mobile="isMobileWebApp()"
       :allow-move="store.isMovableByUser"
@@ -105,6 +105,13 @@ const emit = defineEmits<{
 
 const store = useStore();
 const appSettings = useAppSettings();
+
+const boardFlip = computed(() => {
+  if (store.appState === AppState.MEMORIZE) {
+    return store.memorizePlayerColor === Color.WHITE;
+  }
+  return appSettings.boardFlipping;
+});
 
 const onResize = (size: RectSize) => {
   emit("resize", size);

@@ -144,7 +144,7 @@ import { computed, ref } from "vue";
 import { useStore } from "@/renderer/store";
 import ToggleButton from "@/renderer/view/primitive/ToggleButton.vue";
 import DialogFrame from "./DialogFrame.vue";
-import type { TimeLimitMode } from "@/renderer/store/memorize.js";
+import type { TimeLimitMode } from "@/renderer/store/memorize/index.js";
 
 const store = useStore();
 
