@@ -13,6 +13,9 @@ enum STORAGE_KEY {
 }
 
 const fileCache = new Map<string, ArrayBuffer>();
+/** File System Access API用: 選択されたファイルのハンドルをキャッシュ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let currentRecordFileHandle: any = null;
 
 export const webAPI: Bridge = {
   // Core
@@ -66,23 +69,114 @@ export const webAPI: Bridge = {
 
   // Record File
   showOpenRecordDialog(): Promise<string> {
+    // File System Access APIが利用可能なら使用
+    if ("showOpenFilePicker" in window) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any)
+        .showOpenFilePicker({
+          types: [
+            {
+              description: "棋譜ファイル",
+              accept: {
+                "text/*": [
+                  ".kif",
+                  ".kifu",
+                  ".ki2",
+                  ".ki2u",
+                  ".csa",
+                  ".usi",
+                  ".jkf",
+                  ".sfen",
+                  ".json",
+                ],
+              },
+            },
+          ],
+        })
+        .then(
+          (
+            handles: {
+              name: string;
+            }[],
+          ) => {
+            if (handles.length > 0) {
+              currentRecordFileHandle = handles[0];
+              return handles[0].name;
+            }
+            return "";
+          },
+        )
+        .catch(() => "");
+    }
     return Promise.resolve("");
   },
-  showSaveRecordDialog(): Promise<string> {
+  showSaveRecordDialog(defaultPath: string): Promise<string> {
+    // File System Access APIが利用可能なら使用
+    if ("showSaveFilePicker" in window) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any)
+        .showSaveFilePicker({
+          suggestedName: defaultPath,
+          types: [
+            {
+              description: "棋譜ファイル",
+              accept: {
+                "text/*": [".kif", ".kifu", ".ki2", ".ki2u", ".csa", ".usi", ".jkf"],
+              },
+            },
+          ],
+        })
+        .then((handle: { name: string }) => {
+          currentRecordFileHandle = handle;
+          return handle.name;
+        })
+        .catch(() => "");
+    }
     return Promise.resolve("");
   },
   showSaveMergedRecordDialog(): Promise<string> {
     return Promise.resolve("");
   },
   openRecord(path: string): Promise<Uint8Array> {
+    // キャッシュされたファイルハンドルから読み込む
+    if (currentRecordFileHandle && "getFile" in currentRecordFileHandle) {
+      return currentRecordFileHandle
+        .getFile()
+        .then((file: File) => {
+          return file.arrayBuffer();
+        })
+        .then((buffer: ArrayBuffer) => {
+          fileCache.set(path, buffer);
+          return new Uint8Array(buffer);
+        })
+        .catch(() => {
+          return new Uint8Array();
+        });
+    }
+    // フォールバック: キャッシュから読み込む
     const data = fileCache.get(path);
     if (data) {
       return Promise.resolve(new Uint8Array(data));
     }
     return Promise.resolve(new Uint8Array());
   },
-  saveRecord(): Promise<void> {
-    return Promise.resolve();
+  async saveRecord(path: string, data: Uint8Array): Promise<void> {
+    // File System Access APIのファイルハンドルがあれば、そこへ書き込む
+    if (currentRecordFileHandle && "createWritable" in currentRecordFileHandle) {
+      const writable = await currentRecordFileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      return;
+    }
+    // フォールバック: ダウンロード
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const blob = new Blob([data as any], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = path.split("/").pop() || "record.kif";
+    a.click();
+    URL.revokeObjectURL(url);
   },
   loadRecordFileHistory(): Promise<string> {
     return Promise.resolve(JSON.stringify(getEmptyHistory()));
