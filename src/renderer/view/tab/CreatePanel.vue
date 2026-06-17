@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <div v-else class="create-editor">
+    <div v-else class="create-editor" :class="{ narrow: isNarrow }">
       <div class="editor-buttons column" :class="{ compact: isCompact }">
         <button class="ctrl-btn close-btn" @click="onCloseCollection">
           <Icon :icon="IconType.CLOSE" /><span>問題集を閉じる</span>
@@ -30,6 +30,9 @@
         </button>
         <button class="ctrl-btn" @click="onEditSettings">
           <Icon :icon="IconType.SETTINGS" /><span>問題集の設定</span>
+        </button>
+        <button v-if="isNarrow" class="ctrl-btn list-btn" @click="onOpenProblemList">
+          <Icon :icon="IconType.NOTE" /><span>問題一覧（{{ problemCount }}問）</span>
         </button>
         <template v-if="store.editingProblemIndex >= 0">
           <div class="edit-separator"></div>
@@ -51,7 +54,7 @@
         </template>
       </div>
 
-      <div class="editor-list-area">
+      <div v-if="!isNarrow" class="editor-list-area">
         <div class="list-label">問題一覧（{{ store.editCollection.problems.length }}問）</div>
         <div class="list">
           <VueDraggable
@@ -95,6 +98,10 @@
       @confirm="onImportCommentsConfirm"
       @close="isImportCommentsDialogVisible = false"
     />
+    <MemorizeProblemListDialog
+      v-if="isProblemListDialogVisible"
+      @close="isProblemListDialogVisible = false"
+    />
   </div>
 </template>
 
@@ -111,6 +118,7 @@ import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vu
 import MemorizeSettingsDialog from "@/renderer/view/dialog/MemorizeSettingsDialog.vue";
 import MemorizeBranchDialog from "@/renderer/view/dialog/MemorizeBranchDialog.vue";
 import MemorizeImportCommentsDialog from "@/renderer/view/dialog/MemorizeImportCommentsDialog.vue";
+import MemorizeProblemListDialog from "@/renderer/view/dialog/MemorizeProblemListDialog.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 import { useFileReader } from "@/renderer/composables/useFileReader.js";
 import api, { isNative } from "@/renderer/ipc/api.js";
@@ -128,6 +136,20 @@ const props = defineProps({
 const isCompact = computed(() => {
   return props.size?.height !== undefined && props.size.height < 230;
 });
+
+const NARROW_WIDTH_THRESHOLD = 861;
+const isNarrow = computed(() => {
+  return props.size?.width !== undefined && props.size.width < NARROW_WIDTH_THRESHOLD;
+});
+
+const problemCount = computed(() => {
+  return store.editCollection?.problems.length ?? 0;
+});
+
+const isProblemListDialogVisible = ref(false);
+const onOpenProblemList = () => {
+  isProblemListDialogVisible.value = true;
+};
 
 const store = useStore();
 const { openYAMLFile, openRecordFile, downloadBlob } = useFileReader();
@@ -375,6 +397,15 @@ const openYAMLForCreating = () => {
 }
 .editor-buttons.compact .edit-name-input {
   width: 100%;
+}
+.create-editor.narrow {
+  flex-direction: column;
+}
+.create-editor.narrow .editor-buttons {
+  width: 100%;
+  box-sizing: border-box;
+  border-right: none;
+  border-bottom: 1px solid var(--text-separator-color);
 }
 .save-btn {
   border-color: #4caf50;
