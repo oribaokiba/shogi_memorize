@@ -526,6 +526,10 @@ class Store {
     this._memorize.moveEditProblem(fromIndex, toIndex);
   }
 
+  replaceEditProblems(problems: import("@/common/memorize/index.js").MemorizeProblem[]): void {
+    this._memorize.replaceEditProblems(problems);
+  }
+
   batchApplyHintToProblems(problemIndices: number[], hintIndex: number, text: string): void {
     this._memorize.batchApplyHintToProblems(problemIndices, hintIndex, text);
   }

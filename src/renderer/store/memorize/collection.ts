@@ -498,6 +498,21 @@ export class CollectionManager {
     this._editCollection.problems.push(problem);
   }
 
+  replaceEditProblems(problems: import("@/common/memorize/index.js").MemorizeProblem[]): void {
+    if (this._isSolving()) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
+      return;
+    }
+    if (!this._editCollection) {
+      return;
+    }
+    this._editCollection.problems = problems;
+    // 編集中のインデックスが範囲外になったらクリア
+    if (this._editingProblemIndex >= problems.length) {
+      this._editingProblemIndex = -1;
+    }
+  }
+
   moveEditProblem(fromIndex: number, toIndex: number): void {
     if (this._isSolving()) {
       useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));

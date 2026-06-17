@@ -58,11 +58,10 @@
         <div class="list-label">問題一覧（{{ store.editCollection.problems.length }}問）</div>
         <div class="list">
           <VueDraggable
-            :list="problems"
+            v-model="problems"
             :item-key="(problem: any) => store.editCollection?.problems.indexOf(problem) ?? -1"
             handle=".drag-handle"
             ghost-class="ghost"
-            @end="onDragEnd"
           >
             <template #item="{ element, index }">
               <div
@@ -241,13 +240,14 @@ watch(
   },
 );
 
-const problems = computed(() => {
-  return store.editCollection?.problems ?? [];
+const problems = computed({
+  get: () => {
+    return store.editCollection?.problems ?? [];
+  },
+  set: (value: import("@/common/memorize/index.js").MemorizeProblem[]) => {
+    store.replaceEditProblems(value);
+  },
 });
-
-const onDragEnd = (evt: { oldIndex: number; newIndex: number }) => {
-  store.moveEditProblem(evt.oldIndex, evt.newIndex);
-};
 
 const onSelectProblem = (idx: number) => {
   store.loadEditProblemToRecord(idx);

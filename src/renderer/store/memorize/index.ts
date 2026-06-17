@@ -435,6 +435,10 @@ export class MemorizeManager {
     this._collectionManager.moveEditProblem(fromIndex, toIndex);
   }
 
+  replaceEditProblems(problems: import("@/common/memorize/index.js").MemorizeProblem[]): void {
+    this._collectionManager.replaceEditProblems(problems);
+  }
+
   closeEditCollection(): void {
     this._collectionManager.closeEditCollection();
   }
