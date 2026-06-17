@@ -469,6 +469,13 @@ export class CollectionManager {
     });
 
     const playerColor = this._editCollection.playerColor === "white" ? Color.WHITE : Color.BLACK;
+
+    // 重複チェック
+    if (this.isDuplicateEditProblem(sfen, playerColor, fullPathUSI)) {
+      useErrorStore().add(new Error("同じ手順の問題が既に存在します。"));
+      return false;
+    }
+
     const problem: import("@/common/memorize/index.js").MemorizeProblem = {
       name,
       sfen,

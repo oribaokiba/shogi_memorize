@@ -225,7 +225,12 @@ const onUpdateProblem = () => {
 
     // ヒント変更差分を取得し、同じUSI手を持つ他問題があれば一括適用を提案
     const changes = store.getHintChangesAfterUpdate();
-    for (const change of changes) {
+    // 確認ダイアログを逐次表示するための再帰的処理
+    const processChanges = (index: number) => {
+      if (index >= changes.length) {
+        return;
+      }
+      const change = changes[index];
       const sameUSIIndices = store.findProblemIndicesWithSameUSI(change.index, change.usi);
       if (sameUSIIndices.length > 0) {
         const isDelete = change.text === "";
@@ -241,10 +246,21 @@ const onUpdateProblem = () => {
                 ? `${sameUSIIndices.length}件の問題の${change.index + 1}手目からコメントを削除しました。`
                 : `${sameUSIIndices.length}件の問題の${change.index + 1}手目にコメントを適用しました。`,
             });
+            // 次の変更の確認へ
+            processChanges(index + 1);
+          },
+          onCancel: () => {
+            // スキップして次の変更の確認へ
+            processChanges(index + 1);
           },
         });
+      } else {
+        // 同じ手がない場合はスキップ
+        processChanges(index + 1);
       }
-    }
+    };
+    // 最初の変更から処理開始
+    processChanges(0);
   }
 };
 
