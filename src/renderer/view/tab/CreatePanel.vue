@@ -62,7 +62,7 @@
             :item-key="(problem: any) => store.editCollection?.problems.indexOf(problem) ?? -1"
             handle=".drag-handle"
             ghost-class="ghost"
-            @change="onDragChange"
+            @end="onDragEnd"
           >
             <template #item="{ element, index }">
               <div
@@ -137,7 +137,7 @@ const isCompact = computed(() => {
   return props.size?.height !== undefined && props.size.height < 230;
 });
 
-const NARROW_WIDTH_THRESHOLD = 861;
+const NARROW_WIDTH_THRESHOLD = 500;
 const isNarrow = computed(() => {
   return props.size?.width !== undefined && props.size.width < NARROW_WIDTH_THRESHOLD;
 });
@@ -245,10 +245,8 @@ const problems = computed(() => {
   return store.editCollection?.problems ?? [];
 });
 
-const onDragChange = (evt: { moved?: { oldIndex: number; newIndex: number } }) => {
-  if (evt.moved) {
-    store.moveEditProblem(evt.moved.oldIndex, evt.moved.newIndex);
-  }
+const onDragEnd = (evt: { oldIndex: number; newIndex: number }) => {
+  store.moveEditProblem(evt.oldIndex, evt.newIndex);
 };
 
 const onSelectProblem = (idx: number) => {
