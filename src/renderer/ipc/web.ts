@@ -137,6 +137,42 @@ export const webAPI: Bridge = {
   showSaveMergedRecordDialog(): Promise<string> {
     return Promise.resolve("");
   },
+  showSaveYAMLDialog(defaultPath: string): Promise<string> {
+    if ("showSaveFilePicker" in window) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any)
+        .showSaveFilePicker({
+          suggestedName: defaultPath,
+          types: [
+            {
+              description: "YAML",
+              accept: { "text/*": [".yaml", ".yml"] },
+            },
+          ],
+        })
+        .then((handle: { name: string }) => {
+          currentRecordFileHandle = handle;
+          return handle.name;
+        })
+        .catch(() => "");
+    }
+    return Promise.resolve("");
+  },
+  async saveYAMLFile(_path: string, data: string): Promise<void> {
+    if (currentRecordFileHandle && "createWritable" in currentRecordFileHandle) {
+      const writable = await currentRecordFileHandle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      return;
+    }
+    const blob = new Blob([data], { type: "text/yaml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = _path.split("/").pop() || "problems.yaml";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
   openRecord(path: string): Promise<Uint8Array> {
     // キャッシュされたファイルハンドルから読み込む
     if (currentRecordFileHandle && "getFile" in currentRecordFileHandle) {

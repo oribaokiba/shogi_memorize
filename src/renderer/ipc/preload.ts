@@ -69,6 +69,12 @@ const api: Bridge = {
   async showSaveMergedRecordDialog(defaultPath: string): Promise<string> {
     return await ipcRenderer.invoke(Background.SHOW_SAVE_MERGED_RECORD_DIALOG, defaultPath);
   },
+  async showSaveYAMLDialog(defaultPath: string): Promise<string> {
+    return await ipcRenderer.invoke(Background.SHOW_SAVE_YAML_DIALOG, defaultPath);
+  },
+  async saveYAMLFile(path: string, data: string): Promise<void> {
+    await ipcRenderer.invoke(Background.SAVE_YAML_FILE, path, data);
+  },
   async openRecord(path: string): Promise<Uint8Array> {
     return await ipcRenderer.invoke(Background.OPEN_RECORD, path);
   },

@@ -4,28 +4,28 @@
     <div class="mode-switch row">
       <button
         class="mode-tab"
-        :class="{ active: panelMode === 'solve' }"
-        @click="panelMode = 'solve'"
+        :class="{ active: store.memorizePanelMode === 'solve' }"
+        @click="store.memorizePanelMode = 'solve'"
       >
         問題を解く
       </button>
       <button
         class="mode-tab"
-        :class="{ active: panelMode === 'create' }"
+        :class="{ active: store.memorizePanelMode === 'create' }"
         :disabled="store.isSolving"
-        @click="panelMode = 'create'"
+        @click="store.memorizePanelMode = 'create'"
       >
         問題を作成
       </button>
     </div>
 
-    <SolvePanel v-if="panelMode === 'solve'" :size="contentSize" />
-    <CreatePanel v-if="panelMode === 'create'" :size="contentSize" />
+    <SolvePanel v-if="store.memorizePanelMode === 'solve'" :size="contentSize" />
+    <CreatePanel v-if="store.memorizePanelMode === 'create'" :size="contentSize" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useStore } from "@/renderer/store";
 import SolvePanel from "@/renderer/view/tab/SolvePanel.vue";
 import CreatePanel from "@/renderer/view/tab/CreatePanel.vue";
@@ -49,9 +49,6 @@ const contentSize = computed(() => {
 });
 
 const store = useStore();
-
-type PanelMode = "solve" | "create";
-const panelMode = ref<PanelMode>("solve");
 </script>
 
 <style scoped>

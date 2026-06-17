@@ -713,6 +713,199 @@ export class CollectionManager {
     this._editingProblemIndex = -1;
   }
 
+  /**
+   * updateEditProblemFromRecord を呼ぶ直前に、編集中問題の更新前ヒント状態を保存する。
+   */
+  captureOldHintsBeforeUpdate(): void {
+    if (this._editingProblemIndex >= 0 && this._editCollection) {
+      this._capturedEditingIndex = this._editingProblemIndex;
+      this._oldHintsBeforeUpdate = this._editCollection.problems[this._editingProblemIndex].hints
+        ? [...this._editCollection.problems[this._editingProblemIndex].hints!]
+        : [];
+    } else {
+      this._capturedEditingIndex = -1;
+      this._oldHintsBeforeUpdate = undefined;
+    }
+  }
+
+  private _capturedEditingIndex = -1;
+  private _oldHintsBeforeUpdate: { index: number; text: string }[] | undefined = undefined;
+
+  /**
+   * updateEditProblemFromRecord の実行後に、編集中問題のヒント変更差分を取得する。
+   * 変更＝新しく追加された、またはテキストが変更されたヒント、または削除されたヒント。
+   * @returns 変更があった各ヒントの { index, usi, text, usiDisplay }
+   */
+  getHintChangesAfterUpdate(): { index: number; usi: string; text: string; usiDisplay: string }[] {
+    const problemIndex = this._capturedEditingIndex;
+    if (
+      !this._editCollection ||
+      problemIndex < 0 ||
+      problemIndex >= this._editCollection.problems.length
+    ) {
+      return [];
+    }
+    const oldHints = this._oldHintsBeforeUpdate || [];
+    const problem = this._editCollection.problems[problemIndex];
+    const newHints = problem.hints || [];
+
+    const oldMap = new Map<number, string>();
+    for (const h of oldHints) {
+      oldMap.set(h.index, h.text);
+    }
+
+    const newMap = new Map<number, string>();
+    for (const h of newHints) {
+      newMap.set(h.index, h.text);
+    }
+
+    const changes: { index: number; usi: string; text: string; usiDisplay: string }[] = [];
+
+    // Position を使って駒名を取得する（一手ずつ適用しながら）
+    const pos = Position.newBySFEN(problem.sfen);
+    const usiDisplayCache: Map<number, string> = new Map();
+    if (pos) {
+      for (let i = 0; i < problem.moves.length; i++) {
+        const usi = problem.moves[i];
+        if (!usi) {
+          continue;
+        }
+        const move = pos.createMoveByUSI(usi);
+        if (move) {
+          const toUSI = move.to.usi;
+          const toDisplay = this._squareToDisplay(toUSI);
+          const pieceKanji = this._pieceTypeToKanji(move.pieceType);
+          const promote = move.promote ? "成" : "";
+          usiDisplayCache.set(i, `${toDisplay}${pieceKanji}${promote}`);
+          pos.doMove(move);
+        } else {
+          usiDisplayCache.set(i, usi);
+        }
+      }
+    }
+
+    // 追加・変更されたヒント
+    for (const [index, text] of newMap) {
+      const oldText = oldMap.get(index);
+      if (oldText !== text) {
+        const usi = problem.moves[index] || "";
+        if (usi) {
+          const usiDisplay = usiDisplayCache.get(index) || usi;
+          changes.push({ index, usi, text, usiDisplay });
+        }
+      }
+    }
+    // 削除されたヒント
+    for (const [index] of oldMap) {
+      if (!newMap.has(index)) {
+        const usi = problem.moves[index] || "";
+        if (usi) {
+          const usiDisplay = usiDisplayCache.get(index) || usi;
+          changes.push({ index, usi, text: "", usiDisplay });
+        }
+      }
+    }
+    return changes;
+  }
+
+  /**
+   * USI駒種コードを漢字一文字に変換する。
+   */
+  private _pieceTypeToKanji(pieceType: string): string {
+    const map: { [key: string]: string } = {
+      pawn: "歩",
+      lance: "香",
+      knight: "桂",
+      silver: "銀",
+      gold: "金",
+      bishop: "角",
+      rook: "飛",
+      king: "玉",
+      promPawn: "と",
+      promLance: "杏",
+      promKnight: "圭",
+      promSilver: "全",
+      horse: "馬",
+      dragon: "龍",
+    };
+    return map[pieceType] || "";
+  }
+
+  /**
+   * 将棋盤の座標文字列（例: "7g"）を「７七」のような表示に変換する。
+   */
+  private _squareToDisplay(square: string): string {
+    if (square.length !== 2) {
+      return square;
+    }
+    const fileNum = parseInt(square[0], 10);
+    const rankChar = square[1];
+    const fileKanji = "１２３４５６７８９"[fileNum - 1] || square[0];
+    const rankIndex = "abcdefghi".indexOf(rankChar);
+    const rankKanji = "一二三四五六七八九"[rankIndex >= 0 ? rankIndex : -1] || rankChar;
+    return fileKanji + rankKanji;
+  }
+
+  /**
+   * 現在の編集コレクションから、指定された手数(index)に指定されたUSI文字列を持つ
+   * 他問題のインデックス一覧を返す。
+   */
+  findProblemIndicesWithSameUSI(index: number, usi: string): number[] {
+    if (!this._editCollection || index < 0) {
+      return [];
+    }
+    const skipIndex =
+      this._capturedEditingIndex >= 0 ? this._capturedEditingIndex : this._editingProblemIndex;
+    const results: number[] = [];
+    for (let i = 0; i < this._editCollection.problems.length; i++) {
+      if (i === skipIndex) {
+        continue;
+      }
+      const p = this._editCollection.problems[i];
+      if (index < p.moves.length && p.moves[index] === usi) {
+        results.push(i);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 指定された複数の問題に、指定された手数(index)のヒントをまとめて設定する。
+   */
+  batchApplyHintToProblems(problemIndices: number[], hintIndex: number, text: string): void {
+    if (!this._editCollection) {
+      return;
+    }
+    for (const pi of problemIndices) {
+      if (pi < 0 || pi >= this._editCollection.problems.length) {
+        continue;
+      }
+      const problem = this._editCollection.problems[pi];
+      if (hintIndex >= problem.moves.length) {
+        continue;
+      }
+      if (text === "") {
+        // 空文字の場合は削除
+        if (problem.hints) {
+          problem.hints = problem.hints.filter((h) => h.index !== hintIndex);
+          if (problem.hints.length === 0) {
+            problem.hints = undefined;
+          }
+        }
+      } else {
+        if (!problem.hints) {
+          problem.hints = [];
+        }
+        const existing = problem.hints.find((h) => h.index === hintIndex);
+        if (existing) {
+          existing.text = text;
+        } else {
+          problem.hints.push({ index: hintIndex, text });
+        }
+      }
+    }
+  }
+
   /** 作成用問題集コレクションを閉じる（アンロード） */
   closeEditCollection(): void {
     this._editCollection = null;

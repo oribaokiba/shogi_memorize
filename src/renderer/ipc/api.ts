@@ -2,7 +2,6 @@ import { AppSettings } from "@/common/settings/app.js";
 import { webAPI } from "./web.js";
 import { AppState } from "@/common/control/state.js";
 import { LogLevel, LogType } from "@/common/log.js";
-import { Rect } from "@/common/assets/geometry.js";
 import { RecordFileHistory } from "@/common/file/history.js";
 import { RecordFileFormat } from "@/common/file/record.js";
 import { VersionStatus } from "@/common/version.js";
@@ -32,6 +31,8 @@ export interface API {
   showOpenRecordDialog(formats: RecordFileFormat[]): Promise<string>;
   showSaveRecordDialog(defaultPath: string): Promise<string>;
   showSaveMergedRecordDialog(defaultPath: string): Promise<string>;
+  showSaveYAMLDialog(defaultPath: string): Promise<string>;
+  saveYAMLFile(path: string, data: string): Promise<void>;
   openRecord(path: string): Promise<Uint8Array>;
   saveRecord(path: string, data: Uint8Array): Promise<void>;
   loadRecordFileHistory(): Promise<RecordFileHistory>;

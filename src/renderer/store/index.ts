@@ -46,6 +46,17 @@ import { ListItem } from "@/common/message.js";
 import { MemorizeManager, MemorizeProblem, TimeLimitMode } from "./memorize/index.js";
 import type { TimeLimitSettings } from "@/common/settings/game.js";
 
+/** reactive プロキシ経由でアクセスする必要のあるStore内部フィールド */
+interface ReactiveStoreProxy {
+  appState: AppState;
+  _memorizeBlackTime: number;
+  _memorizeWhiteTime: number;
+  _memorizeBlackByoyomi: number;
+  _memorizeWhiteByoyomi: number;
+  _isMemorizeResultDialogVisible: boolean;
+  _memorizeResultDialogMode: "perProblem" | "overall";
+}
+
 class Store {
   private recordManager = new RecordManager(loadRecordForWebApp());
   private _appState = AppState.NORMAL;
@@ -70,13 +81,11 @@ class Store {
     this._reactive = refs;
     this._memorize = new MemorizeManager(this.recordManager, {
       setAppState: (state: AppState) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this._reactive as any).appState = state;
+        (this._reactive as unknown as ReactiveStoreProxy).appState = state;
       },
       getAppState: () => this._appState,
       showResultDialog: (mode: "perProblem" | "overall") => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = this._reactive as any;
+        const r = this._reactive as unknown as ReactiveStoreProxy;
         r._memorizeResultDialogMode = mode;
         r._isMemorizeResultDialogVisible = true;
       },
@@ -90,7 +99,7 @@ class Store {
       totalTimeMs: number,
     ) => {
       // reactiveプロキシ経由で代入（Vueの変更検知を正しく動作させるため）
-      const r = this._reactive as any;
+      const r = this._reactive as unknown as ReactiveStoreProxy;
       if (timeLimitMode === "none") {
         r._memorizeBlackTime = -1;
         r._memorizeWhiteTime = -1;
@@ -343,6 +352,14 @@ class Store {
     return this._memorize.editingProblemIndex;
   }
 
+  get memorizePanelMode(): "solve" | "create" {
+    return this._memorize.panelMode;
+  }
+
+  set memorizePanelMode(value: "solve" | "create") {
+    this._memorize.panelMode = value;
+  }
+
   // ========== 持ち時間設定 ==========
 
   get dialogUseTimeLimit(): boolean {
@@ -491,6 +508,22 @@ class Store {
 
   clearEditProblem(): void {
     this._memorize.clearEditProblem();
+  }
+
+  captureOldHintsBeforeUpdate(): void {
+    this._memorize.captureOldHintsBeforeUpdate();
+  }
+
+  getHintChangesAfterUpdate(): { index: number; usi: string; text: string; usiDisplay: string }[] {
+    return this._memorize.getHintChangesAfterUpdate();
+  }
+
+  findProblemIndicesWithSameUSI(index: number, usi: string): number[] {
+    return this._memorize.findProblemIndicesWithSameUSI(index, usi);
+  }
+
+  batchApplyHintToProblems(problemIndices: number[], hintIndex: number, text: string): void {
+    this._memorize.batchApplyHintToProblems(problemIndices, hintIndex, text);
   }
 
   closeEditCollection(): void {

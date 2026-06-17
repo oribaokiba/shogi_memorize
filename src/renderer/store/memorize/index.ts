@@ -267,6 +267,16 @@ export class MemorizeManager {
     return this._timerManager.totalTimeMs;
   }
 
+  get panelMode(): "solve" | "create" {
+    return this._panelMode;
+  }
+
+  set panelMode(value: "solve" | "create") {
+    this._panelMode = value;
+  }
+
+  private _panelMode: "solve" | "create" = "solve";
+
   get onTimerUpdate(): TimerUpdateCallback | null {
     return this._timerManager.onTimerUpdate;
   }
@@ -403,6 +413,22 @@ export class MemorizeManager {
 
   clearEditProblem(): void {
     this._collectionManager.clearEditProblem();
+  }
+
+  captureOldHintsBeforeUpdate(): void {
+    this._collectionManager.captureOldHintsBeforeUpdate();
+  }
+
+  getHintChangesAfterUpdate(): { index: number; usi: string; text: string; usiDisplay: string }[] {
+    return this._collectionManager.getHintChangesAfterUpdate();
+  }
+
+  findProblemIndicesWithSameUSI(index: number, usi: string): number[] {
+    return this._collectionManager.findProblemIndicesWithSameUSI(index, usi);
+  }
+
+  batchApplyHintToProblems(problemIndices: number[], hintIndex: number, text: string): void {
+    this._collectionManager.batchApplyHintToProblems(problemIndices, hintIndex, text);
   }
 
   closeEditCollection(): void {

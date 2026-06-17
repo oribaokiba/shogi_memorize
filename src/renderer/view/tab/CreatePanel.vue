@@ -94,6 +94,7 @@ import { ref, computed, watch } from "vue";
 import { useStore } from "@/renderer/store";
 import { useMessageStore } from "@/renderer/store/message";
 import { useErrorStore } from "@/renderer/store/error";
+import { useConfirmationStore } from "@/renderer/store/confirm";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
 import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vue";
@@ -102,6 +103,7 @@ import MemorizeBranchDialog from "@/renderer/view/dialog/MemorizeBranchDialog.vu
 import MemorizeImportCommentsDialog from "@/renderer/view/dialog/MemorizeImportCommentsDialog.vue";
 import { RectSize } from "@/common/assets/geometry.js";
 import { useFileReader } from "@/renderer/composables/useFileReader.js";
+import api, { isNative } from "@/renderer/ipc/api.js";
 
 const props = defineProps({
   size: {
@@ -171,17 +173,22 @@ const onImportCommentsConfirm = (includeComments: boolean) => {
   pendingRecordFileName.value = "";
 };
 
-const onSaveYAML = () => {
+const onSaveYAML = async () => {
   const yaml = store.saveEditCollectionToYAML();
   if (yaml instanceof Error) {
     useErrorStore().add(yaml);
     return;
   }
-  downloadBlob(
-    yaml,
-    `${store.editCollection?.title ?? "problems"}.yaml`,
-    "text/yaml;charset=utf-8",
-  );
+  const defaultPath = `${store.editCollection?.title ?? "problems"}.yaml`;
+  if (isNative() || "showSaveFilePicker" in window) {
+    const path = await api.showSaveYAMLDialog(defaultPath);
+    if (!path) {
+      return; // キャンセル
+    }
+    await api.saveYAMLFile(path, yaml);
+  } else {
+    downloadBlob(yaml, defaultPath, "text/yaml;charset=utf-8");
+  }
 };
 
 const editingName = ref("");
@@ -206,12 +213,38 @@ const onSelectProblem = (idx: number) => {
 };
 
 const onUpdateProblem = () => {
+  // 更新前に古いヒント状態を保存
+  store.captureOldHintsBeforeUpdate();
+
   if (editingName.value.trim()) {
     store.renameEditProblem(editingName.value.trim());
   }
   const ok = store.updateEditProblemFromRecord();
   if (ok) {
     useMessageStore().enqueue({ text: "問題を更新しました。" });
+
+    // ヒント変更差分を取得し、同じUSI手を持つ他問題があれば一括適用を提案
+    const changes = store.getHintChangesAfterUpdate();
+    for (const change of changes) {
+      const sameUSIIndices = store.findProblemIndicesWithSameUSI(change.index, change.usi);
+      if (sameUSIIndices.length > 0) {
+        const isDelete = change.text === "";
+        const displayMove = change.usiDisplay || change.usi;
+        useConfirmationStore().show({
+          message: isDelete
+            ? `${change.index + 1}手目 ${displayMove} のコメントを削除しました。同じ手の全問題(${sameUSIIndices.length}件)からもコメントを削除しますか？`
+            : `${change.index + 1}手目 ${displayMove} のコメントを「${change.text}」に設定しました。同じ手の全問題(${sameUSIIndices.length}件)にも同じコメントを適用しますか？`,
+          onOk: () => {
+            store.batchApplyHintToProblems(sameUSIIndices, change.index, change.text);
+            useMessageStore().enqueue({
+              text: isDelete
+                ? `${sameUSIIndices.length}件の問題の${change.index + 1}手目からコメントを削除しました。`
+                : `${sameUSIIndices.length}件の問題の${change.index + 1}手目にコメントを適用しました。`,
+            });
+          },
+        });
+      }
+    }
   }
 };
 

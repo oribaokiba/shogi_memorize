@@ -286,6 +286,25 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle(
+  Background.SHOW_SAVE_YAML_DIALOG,
+  async (event, defaultPath: string): Promise<string> => {
+    validateIPCSender(event.senderFrame);
+    const filters = [{ name: "YAML", extensions: ["yaml", "yml"] }];
+    return await showSaveDialog(path.resolve(defaultPath), filters);
+  },
+);
+
+ipcMain.handle(
+  Background.SAVE_YAML_FILE,
+  async (event, filePath: string, data: string): Promise<void> => {
+    validateIPCSender(event.senderFrame);
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(filePath, data, "utf-8");
+  },
+);
+
 ipcMain.handle(Background.LOAD_REMOTE_TEXT_FILE, async (event, remoteUrl: string) => {
   validateIPCSender(event.senderFrame);
   return await fetch(remoteUrl);

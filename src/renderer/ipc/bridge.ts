@@ -26,6 +26,8 @@ export interface Bridge {
   showOpenRecordDialog(formats: RecordFileFormat[]): Promise<string>;
   showSaveRecordDialog(defaultPath: string): Promise<string>;
   showSaveMergedRecordDialog(defaultPath: string): Promise<string>;
+  showSaveYAMLDialog(defaultPath: string): Promise<string>;
+  saveYAMLFile(path: string, data: string): Promise<void>;
   openRecord(path: string): Promise<Uint8Array>;
   saveRecord(path: string, data: Uint8Array): Promise<void>;
   loadRecordFileHistory(): Promise<string>;
