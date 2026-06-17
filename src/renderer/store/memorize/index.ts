@@ -431,6 +431,10 @@ export class MemorizeManager {
     this._collectionManager.batchApplyHintToProblems(problemIndices, hintIndex, text);
   }
 
+  moveEditProblem(fromIndex: number, toIndex: number): void {
+    this._collectionManager.moveEditProblem(fromIndex, toIndex);
+  }
+
   closeEditCollection(): void {
     this._collectionManager.closeEditCollection();
   }

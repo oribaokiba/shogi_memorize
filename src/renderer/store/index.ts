@@ -522,6 +522,10 @@ class Store {
     return this._memorize.findProblemIndicesWithSameUSI(index, usi);
   }
 
+  moveEditProblem(fromIndex: number, toIndex: number): void {
+    this._memorize.moveEditProblem(fromIndex, toIndex);
+  }
+
   batchApplyHintToProblems(problemIndices: number[], hintIndex: number, text: string): void {
     this._memorize.batchApplyHintToProblems(problemIndices, hintIndex, text);
   }

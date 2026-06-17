@@ -54,20 +54,29 @@
       <div class="editor-list-area">
         <div class="list-label">問題一覧（{{ store.editCollection.problems.length }}問）</div>
         <div class="list">
-          <div
-            v-for="(problem, idx) in store.editCollection.problems"
-            :key="idx"
-            class="item"
-            :class="{ current: store.editingProblemIndex === idx }"
-            @click="onSelectProblem(idx)"
+          <VueDraggable
+            :list="problems"
+            :item-key="(problem: any) => store.editCollection?.problems.indexOf(problem) ?? -1"
+            handle=".drag-handle"
+            ghost-class="ghost"
+            @change="onDragChange"
           >
-            <span class="idx">{{ idx + 1 }}</span>
-            <span class="name">{{ problem.name }}</span>
-            <span class="moves">{{ problem.moves.length }}手</span>
-            <button class="icon-btn del-btn" @click.stop="removeProblem(idx)">
-              <Icon :icon="IconType.DELETE" />
-            </button>
-          </div>
+            <template #item="{ element, index }">
+              <div
+                class="item"
+                :class="{ current: store.editingProblemIndex === index }"
+                @click="onSelectProblem(index)"
+              >
+                <span class="drag-handle">⠿</span>
+                <span class="idx">{{ index + 1 }}</span>
+                <span class="name">{{ element.name }}</span>
+                <span class="moves">{{ element.moves.length }}手</span>
+                <button class="icon-btn del-btn" @click.stop="removeProblem(index)">
+                  <Icon :icon="IconType.DELETE" />
+                </button>
+              </div>
+            </template>
+          </VueDraggable>
         </div>
       </div>
     </div>
@@ -97,6 +106,7 @@ import { useErrorStore } from "@/renderer/store/error";
 import { useConfirmationStore } from "@/renderer/store/confirm";
 import Icon from "@/renderer/view/primitive/Icon.vue";
 import { IconType } from "@/renderer/assets/icons";
+import vuedraggable from "vuedraggable";
 import MemorizeCreateDialog from "@/renderer/view/dialog/MemorizeCreateDialog.vue";
 import MemorizeSettingsDialog from "@/renderer/view/dialog/MemorizeSettingsDialog.vue";
 import MemorizeBranchDialog from "@/renderer/view/dialog/MemorizeBranchDialog.vue";
@@ -104,6 +114,8 @@ import MemorizeImportCommentsDialog from "@/renderer/view/dialog/MemorizeImportC
 import { RectSize } from "@/common/assets/geometry.js";
 import { useFileReader } from "@/renderer/composables/useFileReader.js";
 import api, { isNative } from "@/renderer/ipc/api.js";
+
+const VueDraggable = vuedraggable;
 
 const props = defineProps({
   size: {
@@ -206,6 +218,16 @@ watch(
     updateEditingName();
   },
 );
+
+const problems = computed(() => {
+  return store.editCollection?.problems ?? [];
+});
+
+const onDragChange = (evt: { moved?: { oldIndex: number; newIndex: number } }) => {
+  if (evt.moved) {
+    store.moveEditProblem(evt.moved.oldIndex, evt.moved.newIndex);
+  }
+};
 
 const onSelectProblem = (idx: number) => {
   store.loadEditProblemToRecord(idx);
@@ -416,6 +438,22 @@ const openYAMLForCreating = () => {
   font-size: 0.82em;
   color: var(--text-color-muted);
   flex-shrink: 0;
+}
+.drag-handle {
+  cursor: grab;
+  color: var(--text-color-muted);
+  font-size: 0.88em;
+  flex-shrink: 0;
+  padding: 0 2px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.ghost {
+  opacity: 0.4;
+  background: var(--button-active-bg-color);
 }
 
 /* ボタン */

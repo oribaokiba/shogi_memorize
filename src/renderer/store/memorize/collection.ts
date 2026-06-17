@@ -498,6 +498,42 @@ export class CollectionManager {
     this._editCollection.problems.push(problem);
   }
 
+  moveEditProblem(fromIndex: number, toIndex: number): void {
+    if (this._isSolving()) {
+      useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
+      return;
+    }
+    if (!this._editCollection || fromIndex === toIndex) {
+      return;
+    }
+    const problems = this._editCollection.problems;
+    if (
+      fromIndex < 0 ||
+      fromIndex >= problems.length ||
+      toIndex < 0 ||
+      toIndex >= problems.length
+    ) {
+      return;
+    }
+    const [moved] = problems.splice(fromIndex, 1);
+    problems.splice(toIndex, 0, moved);
+
+    // 編集中のインデックスを追従
+    if (this._editingProblemIndex === fromIndex) {
+      this._editingProblemIndex = toIndex;
+    } else if (fromIndex < toIndex) {
+      // 前方から後方に移動: 間にある要素は前にずれる
+      if (this._editingProblemIndex > fromIndex && this._editingProblemIndex <= toIndex) {
+        this._editingProblemIndex--;
+      }
+    } else {
+      // 後方から前方に移動: 間にある要素は後ろにずれる
+      if (this._editingProblemIndex >= toIndex && this._editingProblemIndex < fromIndex) {
+        this._editingProblemIndex++;
+      }
+    }
+  }
+
   removeProblemFromEditCollection(index: number): void {
     if (this._isSolving()) {
       useErrorStore().add(new Error("解答セッション中は問題の作成・編集はできません"));
@@ -863,14 +899,27 @@ export class CollectionManager {
     }
     const skipIndex =
       this._capturedEditingIndex >= 0 ? this._capturedEditingIndex : this._editingProblemIndex;
+    // skipIndex が有効でない場合は自分自身を特定できないため、空配列を返す
+    if (skipIndex < 0 || skipIndex >= this._editCollection.problems.length) {
+      return [];
+    }
+    // 編集中の問題の手順（prefix比較の基準とする）
+    const refMoves = this._editCollection.problems[skipIndex].moves;
+    if (index >= refMoves.length) {
+      return [];
+    }
     const results: number[] = [];
     for (let i = 0; i < this._editCollection.problems.length; i++) {
       if (i === skipIndex) {
         continue;
       }
       const p = this._editCollection.problems[i];
+      // 同じ手数に同じUSIがあり、かつそこまでの手順（prefix）も一致する場合のみ「同手順」
       if (index < p.moves.length && p.moves[index] === usi) {
-        results.push(i);
+        const prefixMatches = p.moves.slice(0, index).every((m, j) => m === refMoves[j]);
+        if (prefixMatches) {
+          results.push(i);
+        }
       }
     }
     return results;
