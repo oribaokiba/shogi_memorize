@@ -37,6 +37,9 @@ export class CollectionManager {
   private _editCollectionPath: string | null = null;
   private _editingProblemIndex = -1;
 
+  // 未保存の変更があるかどうかのダーティフラグ
+  private _isEditCollectionDirty = false;
+
   // ダイアログ設定
   private _dialogSettings: DialogSettings = createDefaultDialogSettings();
 
@@ -83,6 +86,16 @@ export class CollectionManager {
 
   set editingProblemIndex(index: number) {
     this._editingProblemIndex = index;
+  }
+
+  // === ダーティフラグ ===
+
+  get isEditCollectionDirty(): boolean {
+    return this._isEditCollectionDirty;
+  }
+
+  markEditCollectionClean(): void {
+    this._isEditCollectionDirty = false;
   }
 
   // === ダイアログ設定 ===
@@ -169,6 +182,7 @@ export class CollectionManager {
     };
     this._editCollectionPath = null;
     this._editingProblemIndex = -1;
+    this._isEditCollectionDirty = false;
   }
 
   updateEditCollectionSettings(title: string, playerColor: "black" | "white"): void {
@@ -177,6 +191,7 @@ export class CollectionManager {
     }
     this._editCollection.title = title;
     this._editCollection.playerColor = playerColor;
+    this._isEditCollectionDirty = true;
   }
 
   loadEditCollectionFromYAML(yaml: string): Error | undefined {
@@ -190,6 +205,7 @@ export class CollectionManager {
     this._editCollection = result;
     this._editCollectionPath = null;
     this._editingProblemIndex = -1;
+    this._isEditCollectionDirty = false;
     return undefined;
   }
 
@@ -197,7 +213,11 @@ export class CollectionManager {
     if (!this._editCollection) {
       return new Error("問題集が作成されていません");
     }
-    return saveMemorizeCollection(this._editCollection);
+    const result = saveMemorizeCollection(this._editCollection);
+    if (!(result instanceof Error)) {
+      this._isEditCollectionDirty = false;
+    }
+    return result;
   }
 
   private isDuplicateEditProblem(sfen: string, playerColor: Color, moves: string[]): boolean {
@@ -227,6 +247,9 @@ export class CollectionManager {
         this._editCollection.problems.push(problem);
         addedCount++;
       }
+    }
+    if (addedCount > 0) {
+      this._isEditCollectionDirty = true;
     }
     return addedCount;
   }
@@ -354,6 +377,9 @@ export class CollectionManager {
       } else {
         skippedCount++;
       }
+    }
+    if (addedCount > 0) {
+      this._isEditCollectionDirty = true;
     }
     return { added: addedCount, skipped: skippedCount };
   }
@@ -484,6 +510,7 @@ export class CollectionManager {
       hints: hints.length > 0 ? hints : undefined,
     };
     this._editCollection.problems.push(problem);
+    this._isEditCollectionDirty = true;
     return true;
   }
 
@@ -496,6 +523,7 @@ export class CollectionManager {
       return;
     }
     this._editCollection.problems.push(problem);
+    this._isEditCollectionDirty = true;
   }
 
   replaceEditProblems(problems: import("@/common/memorize/index.js").MemorizeProblem[]): void {
@@ -511,6 +539,7 @@ export class CollectionManager {
     if (this._editingProblemIndex >= problems.length) {
       this._editingProblemIndex = -1;
     }
+    this._isEditCollectionDirty = true;
   }
 
   moveEditProblem(fromIndex: number, toIndex: number): void {
@@ -547,6 +576,7 @@ export class CollectionManager {
         this._editingProblemIndex++;
       }
     }
+    this._isEditCollectionDirty = true;
   }
 
   removeProblemFromEditCollection(index: number): void {
@@ -570,6 +600,7 @@ export class CollectionManager {
         } else if (this._editingProblemIndex > index) {
           this._editingProblemIndex--;
         }
+        this._isEditCollectionDirty = true;
       },
     });
   }
@@ -586,6 +617,7 @@ export class CollectionManager {
       return;
     }
     this._editCollection.problems[index] = problem;
+    this._isEditCollectionDirty = true;
   }
 
   loadEditProblemToRecord(
@@ -753,6 +785,7 @@ export class CollectionManager {
 
     this._editCollection.problems[this._editingProblemIndex] = updatedProblem;
     this._editingProblemIndex = -1;
+    this._isEditCollectionDirty = true;
     return true;
   }
 
@@ -765,6 +798,7 @@ export class CollectionManager {
       return;
     }
     this._editCollection.problems[this._editingProblemIndex].name = name;
+    this._isEditCollectionDirty = true;
   }
 
   clearEditProblem(): void {
@@ -982,6 +1016,7 @@ export class CollectionManager {
     this._editCollection = null;
     this._editCollectionPath = null;
     this._editingProblemIndex = -1;
+    this._isEditCollectionDirty = false;
   }
 
   /** 解答用問題集コレクションを閉じる（アンロード） */

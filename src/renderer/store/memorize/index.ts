@@ -189,6 +189,18 @@ export class MemorizeManager {
     return this._collectionManager.editingProblemIndex;
   }
 
+  set editingProblemIndex(index: number) {
+    this._collectionManager.editingProblemIndex = index;
+  }
+
+  get isEditCollectionDirty(): boolean {
+    return this._collectionManager.isEditCollectionDirty;
+  }
+
+  markEditCollectionClean(): void {
+    this._collectionManager.markEditCollectionClean();
+  }
+
   get dialogRandomOrder(): boolean {
     return this._collectionManager.dialogRandomOrder;
   }

@@ -152,9 +152,19 @@ const onOpenProblemList = () => {
 
 const store = useStore();
 const { openYAMLFile, openRecordFile, downloadBlob } = useFileReader();
+const confirmationStore = useConfirmationStore();
 
 const showCreateDialog = () => {
-  store.showMemorizeCreateDialog();
+  if (store.isEditCollectionDirty) {
+    confirmationStore.show({
+      message: "保存されていない変更があります。新規問題集を作成してもよろしいですか？",
+      onOk: () => {
+        store.showMemorizeCreateDialog();
+      },
+    });
+  } else {
+    store.showMemorizeCreateDialog();
+  }
 };
 
 const isSettingsDialogVisible = ref(false);
@@ -250,8 +260,19 @@ const problems = computed({
 });
 
 const onSelectProblem = (idx: number) => {
-  store.loadEditProblemToRecord(idx);
-  updateEditingName();
+  // 現在編集中の問題がある場合、確認を取る
+  if (store.editingProblemIndex >= 0 && store.editingProblemIndex !== idx) {
+    confirmationStore.show({
+      message: "編集中の問題があります。別の問題に移動してもよろしいですか？",
+      onOk: () => {
+        store.loadEditProblemToRecord(idx);
+        updateEditingName();
+      },
+    });
+  } else {
+    store.loadEditProblemToRecord(idx);
+    updateEditingName();
+  }
 };
 
 const onUpdateProblem = () => {
@@ -307,7 +328,16 @@ const onUpdateProblem = () => {
 };
 
 const onCancelEditing = () => {
-  store.clearEditProblem();
+  if (store.editingProblemIndex >= 0) {
+    confirmationStore.show({
+      message: "編集中の変更を破棄してもよろしいですか？",
+      onOk: () => {
+        store.clearEditProblem();
+      },
+    });
+  } else {
+    store.clearEditProblem();
+  }
 };
 
 const removeProblem = (idx: number) => {
@@ -315,17 +345,41 @@ const removeProblem = (idx: number) => {
 };
 
 const onCloseCollection = () => {
-  store.closeEditCollection();
+  if (store.isEditCollectionDirty) {
+    confirmationStore.show({
+      message: "保存されていない変更があります。閉じてもよろしいですか？",
+      onOk: () => {
+        store.closeEditCollection();
+      },
+    });
+  } else {
+    store.closeEditCollection();
+  }
 };
 
 const openYAMLForCreating = () => {
-  openYAMLFile((text: string) => {
-    const err = store.loadEditCollectionFromYAML(text);
-    if (err) {
-      useErrorStore().add(err);
-      return;
-    }
-  });
+  if (store.isEditCollectionDirty) {
+    confirmationStore.show({
+      message: "保存されていない変更があります。別のファイルを開いてもよろしいですか？",
+      onOk: () => {
+        openYAMLFile((text: string) => {
+          const err = store.loadEditCollectionFromYAML(text);
+          if (err) {
+            useErrorStore().add(err);
+            return;
+          }
+        });
+      },
+    });
+  } else {
+    openYAMLFile((text: string) => {
+      const err = store.loadEditCollectionFromYAML(text);
+      if (err) {
+        useErrorStore().add(err);
+        return;
+      }
+    });
+  }
 };
 </script>
 

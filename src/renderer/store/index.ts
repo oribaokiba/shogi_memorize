@@ -352,6 +352,14 @@ class Store {
     return this._memorize.editingProblemIndex;
   }
 
+  get isEditCollectionDirty(): boolean {
+    return this._memorize.isEditCollectionDirty;
+  }
+
+  markEditCollectionClean(): void {
+    this._memorize.markEditCollectionClean();
+  }
+
   get memorizePanelMode(): "solve" | "create" {
     return this._memorize.panelMode;
   }
